@@ -1,0 +1,7 @@
+[package]
+name = "psc"
+version = "0.1.0"
+authors = ["Xyzt Toe <584605539@qq.com>"]
+edition = "2018"
+
+[dependencies]

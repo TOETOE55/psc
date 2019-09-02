@@ -1,5 +1,7 @@
 use crate::core::traits::parser::Parser;
 use crate::core::traits::stream::Stream;
+use crate::core::state::ParseState;
+use crate::core::err::ParseError;
 
 /// satisfy
 #[derive(Clone)]
@@ -13,12 +15,13 @@ impl<F> Satisfy<F> {
     }
 }
 
-impl<S: Stream<Item=char>, F> Parser<S> for Satisfy<F>
+impl<'a, F> Parser<ParseState<'a>, ParseError> for Satisfy<F>
     where F: Fn(&char) -> bool,
 {
     type Target = char;
-    fn parse(&self, stream : S) -> Option<(Self::Target, S)> {
+    fn parse(&self, stream : ParseState<'a>) -> Result<(Self::Target, ParseState<'a>), ParseError> {
         stream.next().filter(|(ch, _)| (self.satisfy)(ch))
+            .ok_or(ParseError::new(format!("expected at {:?}", stream.pos), stream.pos))
     }
 }
 
@@ -41,10 +44,11 @@ impl Char {
     }
 }
 
-impl<S: Stream<Item=char>> Parser<S> for Char {
+impl<'a> Parser<ParseState<'a>, ParseError> for Char {
     type Target = char;
-    fn parse(&self, stream: S) -> Option<(Self::Target, S)> {
+    fn parse(&self, stream: ParseState<'a>) -> Result<(Self::Target, ParseState<'a>), ParseError> {
         stream.next().filter(|&(ch, _)| self.ch == ch)
+            .ok_or(ParseError::new(format!("expected at {:?}", stream.pos), stream.pos))
     }
 }
 
@@ -64,15 +68,15 @@ impl<'a> Strg<'a> {
     }
 }
 
-impl<'a, S: Stream<Item=char> + Clone> Parser<S> for Strg<'a> {
+impl<'a, 's> Parser<ParseState<'s>, ParseError> for Strg<'a> {
     type Target = &'a str;
-    fn parse(&self, stream: S) -> Option<(Self::Target, S)> {
+    fn parse(&self, stream: ParseState<'s>) -> Result<(Self::Target, ParseState<'s>), ParseError> {
         let mut chars = self.s.chars();
         let mut stream = stream;
         while let Some(ch) = chars.next() {
             stream = char(ch).parse(stream.clone())?.1;
         }
-        Some((self.s, stream))
+        Ok((self.s, stream))
     }
 }
 
