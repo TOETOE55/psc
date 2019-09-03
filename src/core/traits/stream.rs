@@ -1,13 +1,12 @@
 
-pub trait Stream {
+pub trait Stream : Clone {
     type Item;
-    fn next(&self) -> Option<(Self::Item, Self)> where Self: Sized;
-
+    fn next(self) -> Option<(Self::Item, Self)> where Self: Sized;
 }
 
 impl Stream for &str {
     type Item = char;
-    fn next(&self) -> Option<(Self::Item, Self)> {
+    fn next(self) -> Option<(Self::Item, Self)> {
         let mut chars = self.chars();
         match chars.next() {
             Some(c) => Some((c, chars.as_str())),

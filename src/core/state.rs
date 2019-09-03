@@ -27,7 +27,7 @@ impl<'a> ParseState<'a> {
 
 impl<'a> Stream for ParseState<'a> {
     type Item = char;
-    fn next(&self) -> Option<(Self::Item, Self)> {
+    fn next(self) -> Option<(Self::Item, Self)> {
         self.src.next().map(|(ch, src)| (ch, Self {
             src,
             pos: match ch {
