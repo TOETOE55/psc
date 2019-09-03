@@ -1,5 +1,5 @@
 
-pub trait Stream : Clone {
+pub trait Stream {
     type Item;
     fn next(self) -> Option<(Self::Item, Self)> where Self: Sized;
 }

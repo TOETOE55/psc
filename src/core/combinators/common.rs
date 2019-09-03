@@ -20,20 +20,19 @@ impl<S, F> Satisfy<S, F> {
     }
 }
 
-impl<S: Stream<Item=char>, F> Parser for Satisfy<S, F>
-    where F: Fn(&char) -> bool,
+impl<S: Stream, F> Parser<S> for Satisfy<S, F>
+    where F: Fn(&S::Item) -> bool,
 {
-    type Stream = S;
-    type Target = char;
-    fn parse(&self, stream: Self::Stream) -> Result<(Self::Target, Self::Stream), ParseMsg>  {
+    type Target = S::Item;
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
         stream.next().filter(|(ch, _)| (self.satisfy)(ch))
             .ok_or(ParseMsg::UnExcept(format!("unexpected char")))
     }
 }
 
 
-pub fn satisfy<S, F>(f: F) -> Satisfy<S, F>
-    where F: Fn(&char) -> bool,
+pub fn satisfy<S: Stream, F>(f: F) -> Satisfy<S, F>
+    where F: Fn(&S::Item) -> bool,
 {
     Satisfy::new(f)
 }
@@ -55,10 +54,9 @@ impl<S> Char<S> {
     }
 }
 
-impl<S: Stream<Item=char>> Parser for Char<S> {
-    type Stream = S;
+impl<S: Stream<Item=char>> Parser<S> for Char<S> {
     type Target = char;
-    fn parse(&self, stream: Self::Stream) -> Result<(Self::Target, Self::Stream), ParseMsg>  {
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
         stream.next().filter(|&(ch, _)| self.ch == ch)
             .ok_or(ParseMsg::Except(format!("expected isn't {}", self.ch)))
     }
@@ -84,10 +82,9 @@ impl<'a, S> Strg<'a, S> {
     }
 }
 
-impl<'a, S: Stream<Item=char>> Parser for Strg<'a, S> {
-    type Stream = S;
+impl<'a, S: Stream<Item=char> + Clone> Parser<S> for Strg<'a, S> {
     type Target = &'a str;
-    fn parse(&self, stream: Self::Stream) -> Result<(Self::Target, Self::Stream), ParseMsg>  {
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
         let mut chars = self.s.chars();
         let mut stream = stream;
         while let Some(ch) = chars.next() {

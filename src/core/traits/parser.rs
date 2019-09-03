@@ -4,21 +4,20 @@ use crate::core::err::ParseMsg;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-pub trait Parser {
-    type Stream: Stream;
+pub trait Parser<S: Stream> {
     type Target;
-    fn parse(&self, stream: Self::Stream) -> Result<(Self::Target, Self::Stream), ParseMsg>;
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>;
 
     fn or<P>(self, other: P) -> Or<Self, P> where
         Self: Sized,
-        P: Parser<Stream=Self::Stream, Target=Self::Target>,
+        P: Parser<S, Target=Self::Target>,
     {
         Or::new(self, other)
     }
 
     fn and<P>(self, other: P) -> And<Self, P> where
         Self: Sized,
-        P: Parser<Stream=Self::Stream, Target=Self::Target>,
+        P: Parser<S, Target=Self::Target>,
     {
         And::new(self, other)
     }
@@ -26,7 +25,7 @@ pub trait Parser {
     fn app<PF, T, F>(self, pf: PF) -> App<Self, PF> where
         Self: Sized,
         F: Fn(Self::Target) -> T,
-        PF: Parser<Stream=Self::Stream, Target=F>,
+        PF: Parser<S, Target=F>,
     {
         App::new(self, pf)
     }
@@ -40,7 +39,7 @@ pub trait Parser {
 
     fn and_then<P, F>(self, f: F) -> AndThen<Self, F> where
         Self: Sized,
-        P: Parser<Stream=Self::Stream>,
+        P: Parser<S>,
         F: Fn(Self::Target) -> P,
     {
         AndThen::new(self, f)
@@ -54,41 +53,37 @@ pub trait Parser {
         Some::new(self)
     }
 
-    fn label(self, msg: String) -> Or<Self, Failure<Self::Stream, Self::Target>> where Self: Sized {
+    fn label(self, msg: String) -> Or<Self, Failure<S, Self::Target>> where Self: Sized {
         self.or(failure(ParseMsg::Except(msg)))
     }
 }
 
-impl<P: Parser + ?Sized> Parser for &P {
-    type Stream = P::Stream;
+impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for &P {
     type Target = P::Target;
-    fn parse(&self, stream: Self::Stream) -> Result<(Self::Target, Self::Stream), ParseMsg> {
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
         (**self).parse(stream)
     }
 }
 
-impl<P: Parser + ?Sized> Parser for &mut P {
-    type Stream = P::Stream;
+impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for &mut P {
     type Target = P::Target;
-    fn parse(&self, stream: Self::Stream) -> Result<(Self::Target, Self::Stream), ParseMsg> {
-        (**self).parse(stream)
-    }
-}
-
-
-impl<P: Parser + ?Sized> Parser for Box<P> {
-    type Stream = P::Stream;
-    type Target = P::Target;
-    fn parse(&self, stream: Self::Stream) -> Result<(Self::Target, Self::Stream), ParseMsg> {
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
         (**self).parse(stream)
     }
 }
 
 
-impl<P: Parser + ?Sized> Parser for Rc<P> {
-    type Stream = P::Stream;
+impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for Box<P> {
     type Target = P::Target;
-    fn parse(&self, stream: Self::Stream) -> Result<(Self::Target, Self::Stream), ParseMsg> {
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+        (**self).parse(stream)
+    }
+}
+
+
+impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for Rc<P> {
+    type Target = P::Target;
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
         (**self).parse(stream)
     }
 }
