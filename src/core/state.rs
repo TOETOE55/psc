@@ -46,4 +46,8 @@ impl<'a> Stream for ParseState<'a> {
             },
         }))
     }
+
+    fn empty() -> Self {
+        ParseState::new("")
+    }
 }

@@ -1,7 +1,8 @@
 
-pub trait Stream {
+pub trait Stream: Sized {
     type Item;
-    fn next(self) -> Option<(Self::Item, Self)> where Self: Sized;
+    fn next(self) -> Option<(Self::Item, Self)>;
+    fn empty() -> Self;
 }
 
 impl Stream for &str {
@@ -12,5 +13,9 @@ impl Stream for &str {
             Some(c) => Some((c, chars.as_str())),
             _             => None,
         }
+    }
+
+    fn empty() -> Self {
+        ""
     }
 }

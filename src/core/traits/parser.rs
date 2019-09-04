@@ -1,7 +1,6 @@
 use crate::core::traits::stream::Stream;
-use crate::core::combinators::{Or, And, App, Map, AndThen, Many, Some, Failure, failure};
+use crate::core::combinators::{Or, And, App, Map, AndThen, Many, Some, Failure, failure, Dna};
 use crate::core::err::ParseMsg;
-use std::marker::PhantomData;
 use std::rc::Rc;
 
 pub trait Parser<S: Stream> {
@@ -17,9 +16,16 @@ pub trait Parser<S: Stream> {
 
     fn and<P>(self, other: P) -> And<Self, P> where
         Self: Sized,
-        P: Parser<S, Target=Self::Target>,
+        P: Parser<S>,
     {
         And::new(self, other)
+    }
+
+    fn dna<P>(self, other: P) -> Dna<Self, P> where
+        Self: Sized,
+        P: Parser<S, Target=Self::Target>,
+    {
+        Dna::new(self, other)
     }
 
     fn app<PF, T, F>(self, pf: PF) -> App<Self, PF> where

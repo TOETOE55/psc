@@ -1,10 +1,10 @@
 pub mod common;
 
 use std::marker::PhantomData;
-use std::rc::Rc;
 use crate::core::traits::parser::Parser;
 use crate::core::traits::stream::Stream;
 use crate::core::err::ParseMsg;
+use std::rc::Rc;
 
 ///
 #[derive(Clone)]
@@ -61,17 +61,21 @@ pub fn failure<S, T>(msg: ParseMsg) -> Failure<S, T> {
 }
 
 /// fix
-pub struct Fix<S: Stream, A> {
-    fix: Rc<dyn Fn(Fix<S, A>) -> Box<dyn Parser<S, Target=A>>>
+pub struct Fix<'a, S: Stream, A> {
+    fix: Rc<dyn for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target=A> + 'f> + 'a>,
 }
 
-impl<S: Stream, A> Fix<S, A> {
-    pub fn new(fix: Rc<dyn Fn(Fix<S, A>) -> Box<dyn Parser<S, Target=A>>>) -> Self {
-        Self { fix }
+impl<'a, S: Stream, A> Fix<'a, S, A> {
+    pub fn new<F: 'a>(fix: F) -> Self where
+        F: for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target=A> + 'f>,
+    {
+        Self {
+            fix: Rc::new(fix)
+        }
     }
 }
 
-impl<S: Stream, A> Clone for Fix<S, A> {
+impl<'a, S: Stream, A> Clone for Fix<'a, S, A> {
     fn clone(&self) -> Self {
         Fix {
             fix: self.fix.clone(),
@@ -79,16 +83,38 @@ impl<S: Stream, A> Clone for Fix<S, A> {
     }
 }
 
-impl<S: Stream, A> Parser<S> for Fix<S, A> {
+impl<'a, S: Stream, A> Parser<S> for Fix<'a, S, A> {
     type Target = A;
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        (self.fix)((*self).clone()).parse(stream)
+        (self.fix)(self).parse(stream)
     }
 }
 
-pub fn fix<S: Stream, A>(fix: Rc<dyn Fn(Fix<S, A>)
-    -> Box<dyn Parser<S, Target=A>>>) -> Fix<S, A> {
+pub fn fix<'a, S: Stream, A, F: 'a>(fix: F) -> Fix<'a, S, A> where
+    F: for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target=A> + 'f>,
+{
     Fix::new(fix)
+}
+
+pub fn coerce<'a, S: Stream, A, F: 'a>(f: F) -> F where
+    F: for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target=A> + 'f>
+{
+    f
+}
+
+/// EOF
+pub struct EOF<S>(PhantomData<S>);
+impl<S: Stream> Parser<S> for EOF<S> {
+    type Target = ();
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+        match stream.next() {
+            None => Ok(((), Stream::empty())),
+            _    => Err(ParseMsg::Except("expected eof.".to_string())),
+        }
+    }
+}
+pub fn eof<S: Stream>() -> EOF<S> {
+    EOF(PhantomData)
 }
 
 /// or
@@ -131,6 +157,29 @@ impl<S: Stream, A: Parser<S>, B: Parser<S>> Parser<S> for And<A, B> {
     type Target = B::Target;
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
         self.a.parse(stream).and_then(|(_, stream)| self.b.parse(stream))
+    }
+}
+
+/// andl
+#[derive(Clone)]
+pub struct Dna<A, B> {
+    a: A,
+    b: B,
+}
+
+impl<A, B> Dna<A, B> {
+    pub fn new(a:A, b: B) -> Self {
+        Self { a, b }
+    }
+}
+
+impl<S: Stream, A: Parser<S>, B: Parser<S>> Parser<S> for Dna<A, B> {
+    type Target = A::Target;
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+        self.a.parse(stream)
+            .and_then(|(a, stream)|
+                self.b.parse(stream)
+                    .map(|(_, stream)| (a, stream)))
     }
 }
 

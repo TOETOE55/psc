@@ -26,7 +26,7 @@ impl<S: Stream, F> Parser<S> for Satisfy<S, F>
     type Target = S::Item;
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
         stream.next().filter(|(ch, _)| (self.satisfy)(ch))
-            .ok_or(ParseMsg::UnExcept(format!("unexpected char")))
+            .ok_or(ParseMsg::UnExcept(format!("unexpected token")))
     }
 }
 
@@ -54,11 +54,23 @@ impl<S> Char<S> {
     }
 }
 
-impl<S: Stream<Item=char>> Parser<S> for Char<S> {
+impl<'a> Parser<&'a str> for Char<&'a str> {
     type Target = char;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
-        stream.next().filter(|&(ch, _)| self.ch == ch)
-            .ok_or(ParseMsg::Except(format!("expected isn't {}", self.ch)))
+    fn parse(&self, stream: &'a str) -> Result<(Self::Target, &'a str), ParseMsg>  {
+        let (ch, s) = stream.next().ok_or(ParseMsg::EOF)?;
+        if self.ch == ch {
+            Ok((ch, s))
+        } else { Err(ParseMsg::Except(format!("expected {}, found {}.", self.ch, ch))) }
+    }
+}
+
+impl<'a> Parser<ParseState<'a>> for Char<ParseState<'a>> {
+    type Target = char;
+    fn parse(&self, stream: ParseState<'a>) -> Result<(Self::Target, ParseState<'a>), ParseMsg>  {
+        let (ch, ps) = stream.next().ok_or(ParseMsg::EOF)?;
+        if self.ch == ch {
+            Ok((ch, ps))
+        } else { Err(ParseMsg::Except(format!("expected {}, found {} at {:?}.", self.ch, ch, ps.pos))) }
     }
 }
 
@@ -82,15 +94,33 @@ impl<'a, S> Strg<'a, S> {
     }
 }
 
-impl<'a, S: Stream<Item=char> + Clone> Parser<S> for Strg<'a, S> {
-    type Target = &'a str;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
-        let mut chars = self.s.chars();
-        let mut stream = stream;
-        while let Some(ch) = chars.next() {
-            stream = char(ch).parse(stream.clone())?.1;
+impl<'a, 's> Parser<&'s str> for Strg<'a, &'s str> {
+    type Target = &'s str;
+    fn parse(&self, stream: &'s str) -> Result<(Self::Target, &'s str), ParseMsg>  {
+        match stream.match_indices(self.s).next() {
+            Some((0, matched)) => {
+                let mut chars = self.s.chars();
+                let mut stream = stream;
+                while let Some(_) = chars.next() { stream = stream.next().unwrap().1; }
+                Ok((matched, stream))
+            },
+            _ => Err(ParseMsg::Except(format!("expected {}", self.s))),
         }
-        Ok((self.s, stream))
+    }
+}
+
+impl<'a, 's> Parser<ParseState<'s>> for Strg<'a, ParseState<'s>> {
+    type Target = &'s str;
+    fn parse(&self, stream: ParseState<'s>) -> Result<(Self::Target, ParseState<'s>), ParseMsg>  {
+        match stream.src.match_indices(self.s).next() {
+            Some((0, matched)) => {
+                let mut chars = self.s.chars();
+                let mut stream = stream;
+                while let Some(_) = chars.next() { stream = stream.next().unwrap().1; }
+                Ok((matched, stream))
+            },
+            _ => Err(ParseMsg::Except(format!("expected {} at {:?}", self.s, stream.pos))),
+        }
     }
 }
 

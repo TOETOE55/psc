@@ -5,4 +5,5 @@ pub enum ParseMsg {
     UnExcept(String),
     Warn(String),
     Info(String),
+    EOF,
 }
