@@ -70,6 +70,17 @@ mod tests {
         let (res, _) = recursion().parse(&*src)?;
         assert_eq!(res, ());
 
+        let src = "123";
+        let parser = pure(|| vec![])
+            .chain_r(char('1'))
+            .chain_r(char('2'))
+            .chain_r(char('3'));
+        let (res, _) = parser.parse(src)?;
+        assert_eq!(res, vec!['1', '2', '3']);
+
+        let src = "OIHFa";
+        let (res, _) = pure(|| recursion()).join().parse(src)?;
+        assert_eq!(res, ());
         Ok(())
     }
 }

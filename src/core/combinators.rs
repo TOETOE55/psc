@@ -161,7 +161,9 @@ impl<A, B> AndR<A, B> {
 impl<S: Stream, A: Parser<S>, B: Parser<S>> Parser<S> for AndR<A, B> {
     type Target = B::Target;
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        self.a.parse(stream).and_then(|(_, stream)| self.b.parse(stream))
+        let (_, stream) = self.a.parse(stream)?;
+        let (b, stream) = self.b.parse(stream)?;
+        Ok((b, stream))
     }
 }
 
@@ -181,10 +183,9 @@ impl<A, B> AndL<A, B> {
 impl<S: Stream, A: Parser<S>, B: Parser<S>> Parser<S> for AndL<A, B> {
     type Target = A::Target;
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        self.a.parse(stream)
-            .and_then(|(a, stream)|
-                self.b.parse(stream)
-                    .map(|(_, stream)| (a, stream)))
+        let (a, stream) = self.a.parse(stream)?;
+        let (_, stream) = self.b.parse(stream)?;
+        Ok((a, stream))
     }
 }
 
@@ -206,8 +207,8 @@ impl<S: Stream, B, P: Parser<S>, F> Parser<S> for Map<P, F>
 {
     type Target = B;
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
-        self.parser.parse(stream)
-            .map(|(res, stream)| ((self.f)(res), stream))
+        let (res, stream) = self.parser.parse(stream)?;
+        Ok(((self.f)(res), stream))
     }
 }
 
@@ -231,9 +232,9 @@ impl<S: Stream, A, AB, T, F> Parser<S> for App<A, AB> where
 {
     type Target = T;
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
-        self.ab.parse(stream)
-            .and_then(|(f, stream)| self.a.parse(stream)
-                .and_then(|(a, stream)| Ok((f(a), stream))))
+        let (f, stream) = self.ab.parse(stream)?;
+        let (a, stream) = self.a.parse(stream)?;
+        Ok((f(a), stream))
     }
 }
 
@@ -257,9 +258,8 @@ impl<S: Stream, A, B, F> Parser<S> for AndThen<A, F> where
 {
     type Target = B::Target;
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
-        self.parser.parse(stream)
-            .and_then(|(a, stream)| (self.f)(a).parse(stream))
-
+        let (a, stream) = self.parser.parse(stream)?;
+        (self.f)(a).parse(stream)
     }
 }
 
@@ -280,12 +280,10 @@ impl<S: Stream, A, B> Parser<S> for ChainL<A, B> where
 {
     type Target = Vec<A::Target>;
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        self.a.parse(stream)
-            .and_then(|(x, stream)|
-                self.b.parse(stream).map(|(mut xs, stream)| {
-                    xs.insert(0, x);
-                    (xs, stream)
-                }))
+        let (x , stream) = self.a.parse(stream)?;
+        let (mut xs, stream) = self.b.parse(stream)?;
+        xs.insert(0, x);
+        Ok((xs, stream))
     }
 }
 
@@ -306,12 +304,10 @@ impl<S: Stream, A, B> Parser<S> for ChainR<A, B> where
 {
     type Target = Vec<B::Target>;
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        self.a.parse(stream)
-            .and_then(|(mut xs, stream)|
-                self.b.parse(stream).map(|(x, stream)| {
-                    xs.push(x);
-                    (xs, stream)
-                }))
+        let (mut xs , stream) = self.a.parse(stream)?;
+        let (x, stream) = self.b.parse(stream)?;
+        xs.push(x);
+        Ok((xs, stream))
     }
 }
 
@@ -377,5 +373,28 @@ impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Some<P> {
         }
 
         Ok((vec, stream))
+    }
+}
+
+pub struct Join<P> {
+    pp: P,
+}
+
+impl<P> Join<P> {
+    pub fn new(pp: P) -> Self {
+        Self {
+            pp
+        }
+    }
+}
+
+impl<S: Stream, P> Parser<S> for Join<P> where
+    P: Parser<S>,
+    P::Target: Parser<S>,
+{
+    type Target = <<P as Parser<S>>::Target as Parser<S>>::Target;
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+        let (p, stream) = self.pp.parse(stream)?;
+        p.parse(stream)
     }
 }

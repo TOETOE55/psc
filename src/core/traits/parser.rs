@@ -1,5 +1,5 @@
 use crate::core::traits::stream::Stream;
-use crate::core::combinators::{Or, AndR, App, Map, AndThen, Many, Some, Failure, failure, AndL, ChainL, ChainR};
+use crate::core::combinators::{Or, AndR, App, Map, AndThen, Many, Some, Failure, AndL, ChainL, ChainR, Join};
 use crate::core::err::ParseMsg;
 use std::rc::Rc;
 
@@ -74,7 +74,14 @@ pub trait Parser<S: Stream> {
     }
 
     fn label(self, msg: String) -> Or<Self, Failure<S, Self::Target>> where Self: Sized {
-        self.or(failure(ParseMsg::Except(msg)))
+        self.or(Failure::new(ParseMsg::Except(msg)))
+    }
+
+    fn join(self) -> Join<Self> where
+        Self: Sized,
+        Self::Target: Parser<S>,
+    {
+        Join::new(self)
     }
 }
 
