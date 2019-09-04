@@ -1,21 +1,19 @@
 pub mod core;
 
-
 #[cfg(test)]
 mod tests {
     use crate::core::combinators::common::{char, strg, satisfy};
     use crate::core::traits::parser::Parser;
-    use crate::core::combinators::{fix, pure, Fix, coerce};
+    use crate::core::combinators::{fix, pure, Fix};
     use crate::core::err::ParseMsg;
     use crate::core::state::ParseState;
     use crate::core::traits::stream::Stream;
-    use std::rc::Rc;
 
     fn num<S: Stream<Item=char> + Clone>() -> impl Parser<S, Target=u64> {
         satisfy(|ch: &char| ch.is_numeric())
             .some()
             .map(Vec::into_iter)
-            .map(|iter| iter.collect::<String>())
+            .map(Iterator::collect::<String>)
             .map(|num| num.parse::<u64>())
             .map(Result::unwrap)
     }
@@ -30,12 +28,11 @@ mod tests {
     }
 
     fn recursion<'a, S: Stream<Item=char> + Clone>() -> impl Parser<S, Target=()> {
-        let f = coerce(|this| Box::new(
+        fix(|this| Box::new(
             satisfy(|ch: &char| ch.is_uppercase())
-                .and(this)
-                .or(satisfy(|ch: &char| ch.is_lowercase()))));
-        fix(f)
-            .and(pure(|| { }))
+                .and_r(this)
+                .or(satisfy(|ch: &char| ch.is_lowercase()))))
+            .and_r(pure(|| { }))
     }
 
 
@@ -52,13 +49,13 @@ mod tests {
         assert_eq!(res, vec!['1';4]);
 
         let src = "11110";
-        let parser = fix(|it| Box::new(
-            char('1').and(it).or(char('0'))));
+        let parser = fix(Box::new(Fix::coerce(|it| Box::new(
+            char('1').and_r(it).or(char('0'))))));
         let (res, _) = parser.parse(src)?;
         assert_eq!(res, '0');
 
         let src = ParseState::new("abcd");
-        let (res, _) = char('a').and(strg("bcd")).parse(src)?;
+        let (res, _) = char('a').and_r(strg("bcd")).parse(src)?;
         assert_eq!(res, "bcd");
 
         let src = "1234";
