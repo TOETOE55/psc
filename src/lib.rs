@@ -120,7 +120,6 @@ mod tests {
         let (res, _) = parser.parse(src)?;
         assert_eq!(res, 1122);
 
-        None.and_then()
         Ok(())
     }
 }
