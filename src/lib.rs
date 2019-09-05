@@ -1,5 +1,28 @@
 pub mod core;
 
+pub use crate::core::{
+    combinators::{
+        common::{
+            satisfy,
+            char,
+            strg,
+        },
+        fix,
+        pure,
+        failure,
+        eof,
+    },
+    traits::{
+        parser::Parser,
+        stream::Stream,
+    },
+    state::{
+        ParseState,
+        Pos,
+    },
+    err::ParseMsg,
+};
+
 #[cfg(test)]
 mod tests {
     use crate::core::combinators::common::{char, strg, satisfy};
@@ -72,15 +95,32 @@ mod tests {
 
         let src = "123";
         let parser = pure(|| vec![])
-            .chain_r(char('1'))
-            .chain_r(char('2'))
-            .chain_r(char('3'));
+            .snoc(char('1'))
+            .snoc(char('2'))
+            .snoc(char('3'));
         let (res, _) = parser.parse(src)?;
         assert_eq!(res, vec!['1', '2', '3']);
 
         let src = "OIHFa";
         let (res, _) = pure(|| recursion()).join().parse(src)?;
         assert_eq!(res, ());
+
+        let src = "1122";
+        let (res, _) = char('1').many().chain(char('2').many()).parse(src)?;
+        assert_eq!(res, vec!['1', '1', '2', '2']);
+
+        let src = "1122";
+        let parser = char('+').or(char('-')).tries()
+            .map(|sig| sig.unwrap_or('+'))
+            .cons(satisfy(|ch: &char| ch.is_numeric()).many())
+            .map(Vec::into_iter)
+            .map(Iterator::collect::<String>)
+            .map(|s| s.parse::<i64>())
+            .map(Result::unwrap);
+        let (res, _) = parser.parse(src)?;
+        assert_eq!(res, 1122);
+
+        None.and_then()
         Ok(())
     }
 }

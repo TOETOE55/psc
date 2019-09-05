@@ -212,23 +212,51 @@ impl<S: Stream, B, P: Parser<S>, F> Parser<S> for Map<P, F>
     }
 }
 
-/// applicative
+/// map2
 #[derive(Clone)]
-pub struct App<A, AB> {
+pub struct Map2<A, B, F> {
     a: A,
-    ab: AB,
+    b: B,
+    f: F,
 }
 
-impl<A, AB> App<A, AB> {
-    pub fn new(a: A, ab: AB) -> Self {
-        Self { a, ab }
+impl<A, B, F> Map2<A, B, F> {
+    pub fn new(a: A, b: B, f: F) -> Self {
+        Self { a, b, f }
     }
 }
 
-impl<S: Stream, A, AB, T, F> Parser<S> for App<A, AB> where
+impl<S: Stream, A, B, T, F> Parser<S> for Map2<A, B, F> where
     A: Parser<S>,
-    F: Fn(A::Target) -> T,
+    B: Parser<S>,
+    F: Fn(A::Target, B::Target) -> T,
+{
+    type Target = T;
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
+        let (a, stream) = self.a.parse(stream)?;
+        let (b, stream) = self.b.parse(stream)?;
+        Ok(((self.f)(a, b), stream))
+    }
+}
+
+
+/// applicative
+#[derive(Clone)]
+pub struct App<AB, A> {
+    ab: AB,
+    a: A,
+}
+
+impl<AB, A> App<AB, A> {
+    pub fn new(ab: AB, a: A) -> Self {
+        Self { ab, a }
+    }
+}
+
+impl<S: Stream, AB, A, T, F> Parser<S> for App<AB, A> where
+    A: Parser<S>,
     AB: Parser<S, Target=F>,
+    F: Fn(A::Target) -> T,
 {
     type Target = T;
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
@@ -263,18 +291,19 @@ impl<S: Stream, A, B, F> Parser<S> for AndThen<A, F> where
     }
 }
 
-pub struct ChainL<A, B> {
+#[derive(Clone)]
+pub struct Cons<A, B> {
     a: A,
     b: B,
 }
 
-impl<A, B> ChainL<A, B> {
+impl<A, B> Cons<A, B> {
     pub fn new(a: A, b: B) -> Self {
         Self { a, b }
     }
 }
 
-impl<S: Stream, A, B> Parser<S> for ChainL<A, B> where
+impl<S: Stream, A, B> Parser<S> for Cons<A, B> where
     A: Parser<S>,
     B: Parser<S, Target=Vec<A::Target>>,
 {
@@ -287,18 +316,19 @@ impl<S: Stream, A, B> Parser<S> for ChainL<A, B> where
     }
 }
 
-pub struct ChainR<A, B> {
+#[derive(Clone)]
+pub struct Snoc<A, B> {
     a: A,
     b: B,
 }
 
-impl<A, B> ChainR<A, B> {
+impl<A, B> Snoc<A, B> {
     pub fn new(a: A, b: B) -> Self {
         Self { a, b }
     }
 }
 
-impl<S: Stream, A, B> Parser<S> for ChainR<A, B> where
+impl<S: Stream, A, B> Parser<S> for Snoc<A, B> where
     A: Parser<S, Target=Vec<B::Target>>,
     B: Parser<S>,
 {
@@ -311,7 +341,33 @@ impl<S: Stream, A, B> Parser<S> for ChainR<A, B> where
     }
 }
 
+#[derive(Clone)]
+pub struct Chain<A, B> {
+    a: A,
+    b: B,
+}
+
+impl<A, B> Chain<A, B> {
+    pub fn new(a: A, b: B) -> Self {
+        Self { a, b }
+    }
+}
+
+impl<S: Stream, T, A, B> Parser<S> for Chain<A, B> where
+    A: Parser<S, Target=Vec<T>>,
+    B: Parser<S, Target=Vec<T>>,
+{
+    type Target = Vec<T>;
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+        let (mut xs , stream) = self.a.parse(stream)?;
+        let (mut ys, stream) = self.b.parse(stream)?;
+        xs.append(&mut ys);
+        Ok((xs, stream))
+    }
+}
+
 /// many
+#[derive(Clone)]
 pub struct Many<P> {
     parser: P,
 }
@@ -327,17 +383,34 @@ impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Many<P> {
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
         let mut vec = vec![];
         let mut stream = stream;
-        loop {
-            match self.parser.parse(stream.clone()) {
-                Ok((a, s)) => {
-                    vec.push(a);
-                    stream = s;
-                },
-                _ => break,
-            }
+        while let Ok((a, s)) = self.parser.parse(stream.clone()) {
+            vec.push(a);
+            stream = s;
         }
 
         Ok((vec, stream))
+    }
+}
+
+#[derive(Clone)]
+pub struct Many_<P> {
+    parser: P,
+}
+
+impl<P> Many_<P> {
+    pub fn new(parser: P) -> Self {
+        Self { parser }
+    }
+}
+
+impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Many_<P> {
+    type Target = ();
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
+        let mut stream = stream;
+        while let Ok((_, s)) = self.parser.parse(stream.clone()) {
+            stream = s;
+        }
+        Ok(((), stream))
     }
 }
 
@@ -362,20 +435,60 @@ impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Some<P> {
         let (a, mut stream) = self.parser.parse(stream)?;
         vec.push(a);
 
-        loop {
-            match self.parser.parse(stream.clone()) {
-                Ok((a, s)) => {
-                    vec.push(a);
-                    stream = s;
-                },
-                _ => break,
-            }
+        while let Ok((a, s)) = self.parser.parse(stream.clone()) {
+            vec.push(a);
+            stream = s;
         }
 
         Ok((vec, stream))
     }
 }
 
+#[derive(Clone)]
+pub struct Some_<P> {
+    parser: P,
+}
+
+impl<P> Some_<P> {
+    pub fn new(parser: P) -> Self {
+        Self { parser }
+    }
+}
+
+impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Some_<P> {
+    type Target = ();
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+        let (_, mut stream) = self.parser.parse(stream)?;
+        while let Ok((_, s)) = self.parser.parse(stream.clone()) {
+            stream = s;
+        }
+        Ok(((), stream))
+    }
+}
+
+/// try
+#[derive(Clone)]
+pub struct Try<P> {
+    parser: P,
+}
+
+impl<P> Try<P> {
+    pub fn new(parser: P) -> Self {
+        Self { parser }
+    }
+}
+
+impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Try<P> {
+    type Target = Option<P::Target>;
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+        match self.parser.parse(stream.clone()) {
+            Ok((a, stream)) => Ok((Some(a), stream)),
+            _ => Ok((None, stream)),
+        }
+    }
+}
+
+/// join
 pub struct Join<P> {
     pp: P,
 }
@@ -396,5 +509,36 @@ impl<S: Stream, P> Parser<S> for Join<P> where
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
         let (p, stream) = self.pp.parse(stream)?;
         p.parse(stream)
+    }
+}
+
+/// choice
+pub struct Choice<S, A> {
+    ps: Vec<Box<dyn Parser<S, Target=A>>>,
+    _s: PhantomData<S>,
+}
+
+impl<S, A> Choice<S, A> {
+    pub fn new(ps: Vec<Box<dyn Parser<S, Target=A>>>) -> Self {
+        Self {
+            ps,
+            _s: PhantomData,
+        }
+    }
+}
+
+pub fn choice<S: Stream + Clone, A>(ps: Vec<Box<dyn Parser<S, Target=A>>>) -> Choice<S, A> {
+    Choice::new(ps)
+}
+
+impl<S: Stream + Clone, A> Parser<S> for Choice<S, A> {
+    type Target = A;
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+        for p in self.ps.iter() {
+            if let ok @ Ok(_) = p.parse(stream.clone()) {
+                return ok;
+            }
+        }
+        Err(ParseMsg::Info("choice nothing.".to_string()))
     }
 }
