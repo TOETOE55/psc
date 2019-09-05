@@ -4,7 +4,7 @@ use crate::core::state::ParseState;
 use crate::core::err::ParseMsg;
 use std::marker::PhantomData;
 
-/// satisfy
+/// Satisfy parser
 #[derive(Clone)]
 pub struct Satisfy<S, F> {
     satisfy: F,
@@ -38,7 +38,7 @@ pub fn satisfy<S: Stream, F>(f: F) -> Satisfy<S, F>
 }
 
 
-/// char
+/// Char matching parser
 #[derive(Clone)]
 pub struct Char<S> {
     ch: char,
@@ -78,7 +78,7 @@ pub fn char<S>(ch: char) -> Char<S> {
     Char::new(ch)
 }
 
-/// strg
+/// String matching parser
 #[derive(Clone)]
 pub struct Strg<'a, S> {
     s: &'a str,

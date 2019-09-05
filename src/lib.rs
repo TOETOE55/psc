@@ -120,6 +120,7 @@ mod tests {
         let (res, _) = parser.parse(src)?;
         assert_eq!(res, 1122);
 
+        [1].iter().map()
         Ok(())
     }
 }

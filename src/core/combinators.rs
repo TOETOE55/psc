@@ -6,7 +6,7 @@ use crate::core::traits::stream::Stream;
 use crate::core::err::ParseMsg;
 use std::rc::Rc;
 
-///
+/// Pure Combinator
 #[derive(Clone)]
 pub struct Pure<S, F> {
     x: F,
@@ -29,11 +29,13 @@ impl<S: Stream, T, F: Fn() -> T> Parser<S> for Pure<S, F> {
     }
 }
 
+/// Create an Pure Combinator.
+/// The parser will not consume anything, but lift an value to a parser.
 pub fn pure<S, T, F: Fn() -> T>(x: F) -> Pure<S, F> {
     Pure::new(x)
 }
 
-/// failure
+/// Failure Combinator
 pub struct Failure<S, T>{
     msg: ParseMsg,
     _p: PhantomData<T>,
@@ -49,6 +51,7 @@ impl<S, T> Failure<S, T> {
         }
     }
 }
+
 impl<S: Stream, T> Parser<S> for Failure<S, T> {
     type Target = T;
     fn parse(&self, _stream: S) -> Result<(Self::Target, S), ParseMsg> {
@@ -56,11 +59,14 @@ impl<S: Stream, T> Parser<S> for Failure<S, T> {
     }
 }
 
+/// Create the failure combinator.
+/// It consume an stream and returning Err(msg).
 pub fn failure<S, T>(msg: ParseMsg) -> Failure<S, T> {
     Failure::new(msg)
 }
 
-/// fix
+/// Fixed-point Combinator
+/// To deal with some recursion syntax.
 pub struct Fix<'a, S: Stream, A> {
     fix: Rc<dyn for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target=A> + 'f> + 'a>,
 }
@@ -74,6 +80,18 @@ impl<'a, S: Stream, A> Fix<'a, S, A> {
         }
     }
 
+    /// use to make rustc happy.
+    /// # Example
+    /// ```
+    /// use psc::core::combinators::Fix;
+    /// use psc::{fix, Parser};
+    /// let f = Fix::coerce(|it| Box::new(
+    ///            char('1').and_r(it).or(char('0'))));
+    /// let parser = fix(Box::new(f));
+    ///
+    /// let (res, _) = parser.parse("1110")?;
+    /// assert_eq!(res, '0');
+    /// ```
     pub fn coerce<F>(f: F) -> F where
         F: for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target=A> + 'f> + 'a
     {
@@ -96,13 +114,24 @@ impl<'a, S: Stream, A> Parser<S> for Fix<'a, S, A> {
     }
 }
 
+/// Create an fixed-point combinator.
+/// # Example
+/// ```
+/// use psc::{fix, Parser};
+/// let parser = fix(|it| Box::new(
+///         char('1').and_r(it).or(char('0'))));
+/// // parser = '1' parser | '0'
+///
+/// let (res, _) = parser.parse("1110")?;
+/// assert_eq!(res, '0');
+/// ```
 pub fn fix<'a, S: Stream, A, F>(fix: F) -> Fix<'a, S, A> where
     F: for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target=A> + 'f> + 'a,
 {
     Fix::new(fix)
 }
 
-/// EOF
+/// EOF Combinator
 pub struct EOF<S>(PhantomData<S>);
 impl<S> EOF<S> {
     pub fn new() -> Self {
@@ -122,7 +151,7 @@ pub fn eof<S: Stream>() -> EOF<S> {
     EOF::new()
 }
 
-/// or
+/// Alternative Combinator
 #[derive(Clone)]
 pub struct Or<A, B> {
     a: A,
@@ -145,7 +174,7 @@ impl<S: Stream + Clone, A, B> Parser<S> for Or<A, B> where
     }
 }
 
-/// and
+/// Sequence Combinator
 #[derive(Clone)]
 pub struct AndR<A, B> {
     a: A,
@@ -167,7 +196,7 @@ impl<S: Stream, A: Parser<S>, B: Parser<S>> Parser<S> for AndR<A, B> {
     }
 }
 
-/// andl
+/// Sequence Combinator
 #[derive(Clone)]
 pub struct AndL<A, B> {
     a: A,
@@ -189,7 +218,7 @@ impl<S: Stream, A: Parser<S>, B: Parser<S>> Parser<S> for AndL<A, B> {
     }
 }
 
-/// map
+/// Map Combinator
 #[derive(Clone)]
 pub struct Map<P, F> {
     parser: P,
@@ -212,7 +241,7 @@ impl<S: Stream, B, P: Parser<S>, F> Parser<S> for Map<P, F>
     }
 }
 
-/// map2
+/// Map2 Combinator
 #[derive(Clone)]
 pub struct Map2<A, B, F> {
     a: A,
@@ -240,7 +269,7 @@ impl<S: Stream, A, B, T, F> Parser<S> for Map2<A, B, F> where
 }
 
 
-/// applicative
+/// Applicative Combinator
 #[derive(Clone)]
 pub struct App<AB, A> {
     ab: AB,
@@ -266,7 +295,7 @@ impl<S: Stream, AB, A, T, F> Parser<S> for App<AB, A> where
     }
 }
 
-/// and_then
+/// Context Sensitive Sequence Combinator
 #[derive(Clone)]
 pub struct AndThen<P, F> {
     parser: P,
@@ -291,6 +320,7 @@ impl<S: Stream, A, B, F> Parser<S> for AndThen<A, F> where
     }
 }
 
+/// Sequence Combinator
 #[derive(Clone)]
 pub struct Cons<A, B> {
     a: A,
@@ -316,6 +346,7 @@ impl<S: Stream, A, B> Parser<S> for Cons<A, B> where
     }
 }
 
+/// Sequence Combinator
 #[derive(Clone)]
 pub struct Snoc<A, B> {
     a: A,
@@ -341,6 +372,7 @@ impl<S: Stream, A, B> Parser<S> for Snoc<A, B> where
     }
 }
 
+/// Sequence Combinator
 #[derive(Clone)]
 pub struct Chain<A, B> {
     a: A,
@@ -366,7 +398,7 @@ impl<S: Stream, T, A, B> Parser<S> for Chain<A, B> where
     }
 }
 
-/// many
+/// Kleene Closure Combinator
 #[derive(Clone)]
 pub struct Many<P> {
     parser: P,
@@ -392,6 +424,7 @@ impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Many<P> {
     }
 }
 
+/// Kleene Closure Combinator
 #[derive(Clone)]
 pub struct Many_<P> {
     parser: P,
@@ -415,7 +448,7 @@ impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Many_<P> {
 }
 
 
-/// some
+/// Some Combinator
 #[derive(Clone)]
 pub struct Some<P> {
     parser: P,
@@ -444,6 +477,7 @@ impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Some<P> {
     }
 }
 
+/// Some Combinator
 #[derive(Clone)]
 pub struct Some_<P> {
     parser: P,
@@ -466,7 +500,7 @@ impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Some_<P> {
     }
 }
 
-/// try
+/// Try Combinator
 #[derive(Clone)]
 pub struct Try<P> {
     parser: P,
@@ -488,7 +522,7 @@ impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Try<P> {
     }
 }
 
-/// join
+/// Join Combinator
 pub struct Join<P> {
     pp: P,
 }
@@ -512,7 +546,7 @@ impl<S: Stream, P> Parser<S> for Join<P> where
     }
 }
 
-/// choice
+/// Multiple Choice Combinator
 pub struct Choice<S, A> {
     ps: Vec<Box<dyn Parser<S, Target=A>>>,
     _s: PhantomData<S>,
