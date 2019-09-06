@@ -1,4 +1,3 @@
-
 /// The trait of parse stream.
 pub trait Stream: Sized {
     /// The type of stream elements.
@@ -15,7 +14,7 @@ impl Stream for &str {
         let mut chars = self.chars();
         match chars.next() {
             Some(c) => Some((c, chars.as_str())),
-            _             => None,
+            _ => None,
         }
     }
 

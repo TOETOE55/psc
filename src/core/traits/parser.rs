@@ -1,6 +1,9 @@
-use crate::core::traits::stream::Stream;
-use crate::core::combinators::{Or, AndR, App, Map, AndThen, Many, Some, Failure, AndL, Cons, Snoc, Join, Many_, Some_, Chain, Try, Map2};
+use crate::core::combinators::{
+    AndL, AndR, AndThen, App, Chain, Cons, Failure, Join, Many, Many_, Map, Map2, Or, Snoc, Some,
+    Some_, Try,
+};
 use crate::core::err::ParseMsg;
+use crate::core::traits::stream::Stream;
 use std::rc::Rc;
 
 /// An interface for dealing with Parser Combinator.
@@ -65,9 +68,10 @@ pub trait Parser<S: Stream> {
     /// assert_eq!(res, '/');
     /// assert_eq!(s, "123");
     /// ```
-    fn or<P>(self, other: P) -> Or<Self, P> where
+    fn or<P>(self, other: P) -> Or<Self, P>
+    where
         Self: Sized,
-        P: Parser<S, Target=Self::Target>,
+        P: Parser<S, Target = Self::Target>,
     {
         Or::new(self, other)
     }
@@ -96,7 +100,8 @@ pub trait Parser<S: Stream> {
     /// let res = parser.parse("acde").ok();
     /// assert_eq!(res, None);
     /// ```
-    fn and_r<P>(self, other: P) -> AndR<Self, P> where
+    fn and_r<P>(self, other: P) -> AndR<Self, P>
+    where
         Self: Sized,
         P: Parser<S>,
     {
@@ -127,7 +132,8 @@ pub trait Parser<S: Stream> {
     /// let res = parser.parse("acde").ok();
     /// assert_eq!(res, None);
     /// ```
-    fn and_l<P>(self, other: P) -> AndL<Self, P> where
+    fn and_l<P>(self, other: P) -> AndL<Self, P>
+    where
         Self: Sized,
         P: Parser<S>,
     {
@@ -150,7 +156,8 @@ pub trait Parser<S: Stream> {
     /// assert_eq!(res, 1);
     /// assert_eq!(s, "abc");
     /// ```
-    fn map<B, F>(self, f: F) -> Map<Self, F> where
+    fn map<B, F>(self, f: F) -> Map<Self, F>
+    where
         Self: Sized,
         F: Fn(Self::Target) -> B,
     {
@@ -173,7 +180,8 @@ pub trait Parser<S: Stream> {
     /// assert_eq!(res, 3);
     /// assert_eq!(s, "3");
     /// ```
-    fn map2<P, B, F>(self, other: P, f: F) -> Map2<Self, P, F> where
+    fn map2<P, B, F>(self, other: P, f: F) -> Map2<Self, P, F>
+    where
         Self: Sized,
         P: Parser<S>,
         F: Fn(Self::Target, P::Target) -> B,
@@ -196,8 +204,9 @@ pub trait Parser<S: Stream> {
     ///
     /// As a consequence of these laws, it will satisfy:
     /// 1. `pure(|| f).app(p) ~ p.map(f)`
-    fn app<P, T, F>(self, other: P) -> App<Self, P> where
-        Self: Parser<S, Target=F> + Sized,
+    fn app<P, T, F>(self, other: P) -> App<Self, P>
+    where
+        Self: Parser<S, Target = F> + Sized,
         P: Parser<S>,
         F: Fn(P::Target) -> T,
     {
@@ -230,7 +239,8 @@ pub trait Parser<S: Stream> {
     /// let (res, s) = parser.parse("h2");
     /// assert_eq!(res, '2');
     /// ```
-    fn and_then<P, F>(self, f: F) -> AndThen<Self, F> where
+    fn and_then<P, F>(self, f: F) -> AndThen<Self, F>
+    where
         Self: Sized,
         P: Parser<S>,
         F: Fn(Self::Target) -> P,
@@ -250,9 +260,10 @@ pub trait Parser<S: Stream> {
     /// assert_eq!(res, vec!['2', '3', '3', '3']);
     /// assert_eq!(s.src, "4");
     /// ```
-    fn cons<P>(self, other: P) -> Cons<Self, P> where
+    fn cons<P>(self, other: P) -> Cons<Self, P>
+    where
         Self: Sized,
-        P: Parser<S, Target=Vec<Self::Target>>,
+        P: Parser<S, Target = Vec<Self::Target>>,
     {
         Cons::new(self, other)
     }
@@ -269,8 +280,9 @@ pub trait Parser<S: Stream> {
     /// assert_eq!(res, vec!['3', '3', '3', '2']);
     /// assert_eq!(s, "");
     /// ```
-    fn snoc<P>(self, other: P) -> Snoc<Self, P> where
-        Self: Parser<S, Target=Vec<P::Target>> + Sized,
+    fn snoc<P>(self, other: P) -> Snoc<Self, P>
+    where
+        Self: Parser<S, Target = Vec<P::Target>> + Sized,
         P: Parser<S>,
     {
         Snoc::new(self, other)
@@ -288,9 +300,10 @@ pub trait Parser<S: Stream> {
     /// assert_eq!(res, vec!['3', '3', '3', '2', '2']);
     /// assert_eq!(s, "");
     /// ```
-    fn chain<T, P>(self, other: P) -> Chain<Self, P> where
-        Self: Parser<S, Target=Vec<T>> + Sized,
-        P: Parser<S, Target=Vec<T>>,
+    fn chain<T, P>(self, other: P) -> Chain<Self, P>
+    where
+        Self: Parser<S, Target = Vec<T>> + Sized,
+        P: Parser<S, Target = Vec<T>>,
     {
         Chain::new(self, other)
     }
@@ -298,46 +311,68 @@ pub trait Parser<S: Stream> {
     /// Kleene Closure Combinator
     /// `p.many()` applies the parser `p` zero or more times.
     /// Returns a vec of the returned values of `p`.
-    fn many(self) -> Many<Self> where Self: Sized {
+    fn many(self) -> Many<Self>
+    where
+        Self: Sized,
+    {
         Many::new(self)
     }
 
     /// Kleene Closure Combinator
     /// `p.many_()` applies the parser `p` zero or more times, skipping its result.
-    fn many_(self) -> Many_<Self> where Self: Sized {
+    fn many_(self) -> Many_<Self>
+    where
+        Self: Sized,
+    {
         Many_::new(self)
     }
 
     /// `p.many()` applies the parser `p` one or more times.
     /// Returns a vec of the returned values of `p`.
-    fn some(self) -> Some<Self> where Self: Sized {
+    fn some(self) -> Some<Self>
+    where
+        Self: Sized,
+    {
         Some::new(self)
     }
 
     /// `p.many_()` applies the parser `p` one or more times, skipping its result.
-    fn some_(self) -> Some_<Self> where Self: Sized {
+    fn some_(self) -> Some_<Self>
+    where
+        Self: Sized,
+    {
         Some_::new(self)
     }
 
     /// `p.tries()` applies the parser `p` zero or one times.
-    fn tries(self) -> Try<Self> where Self: Sized {
+    fn tries(self) -> Try<Self>
+    where
+        Self: Sized,
+    {
         Try::new(self)
     }
 
     /// Flat the parser which is constraint as Parser<S, Target=Parser<S>>
     /// It can be defined as `pp.join() ~ pp.and_then(|x| x)`
-    fn join(self) -> Join<Self> where
+    fn join(self) -> Join<Self>
+    where
         Self: Sized,
         Self::Target: Parser<S>,
     {
         Join::new(self)
     }
 
-    fn label(self, msg: String) -> Or<Self, Failure<S, Self::Target>> where Self: Sized {
+    fn label(self, msg: String) -> Or<Self, Failure<S, Self::Target>>
+    where
+        Self: Sized,
+    {
         self.or(Failure::new(ParseMsg::Except(msg)))
     }
 
-    fn unexpected(self, msg: String) -> Or<Self, Failure<S, Self::Target>> where Self: Sized {
+    fn unexpected(self, msg: String) -> Or<Self, Failure<S, Self::Target>>
+    where
+        Self: Sized,
+    {
         self.or(Failure::new(ParseMsg::UnExcept(msg)))
     }
 }

@@ -1,9 +1,9 @@
 pub mod common;
 
-use std::marker::PhantomData;
+use crate::core::err::ParseMsg;
 use crate::core::traits::parser::Parser;
 use crate::core::traits::stream::Stream;
-use crate::core::err::ParseMsg;
+use std::marker::PhantomData;
 use std::rc::Rc;
 
 /// Pure Combinator
@@ -15,16 +15,13 @@ pub struct Pure<S, F> {
 
 impl<S, F> Pure<S, F> {
     pub fn new(x: F) -> Self {
-        Self {
-            x,
-            _s: PhantomData,
-        }
+        Self { x, _s: PhantomData }
     }
 }
 
 impl<S: Stream, T, F: Fn() -> T> Parser<S> for Pure<S, F> {
     type Target = T;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
         Ok(((self.x)(), stream))
     }
 }
@@ -36,7 +33,7 @@ pub fn pure<S, T, F: Fn() -> T>(x: F) -> Pure<S, F> {
 }
 
 /// Failure Combinator
-pub struct Failure<S, T>{
+pub struct Failure<S, T> {
     msg: ParseMsg,
     _p: PhantomData<T>,
     _s: PhantomData<S>,
@@ -68,16 +65,15 @@ pub fn failure<S, T>(msg: ParseMsg) -> Failure<S, T> {
 /// Fixed-point Combinator
 /// To deal with some recursion syntax.
 pub struct Fix<'a, S: Stream, A> {
-    fix: Rc<dyn for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target=A> + 'f> + 'a>,
+    fix: Rc<dyn for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target = A> + 'f> + 'a>,
 }
 
 impl<'a, S: Stream, A> Fix<'a, S, A> {
-    pub fn new<F>(fix: F) -> Self where
-        F: for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target=A> + 'f> + 'a,
+    pub fn new<F>(fix: F) -> Self
+    where
+        F: for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target = A> + 'f> + 'a,
     {
-        Self {
-            fix: Rc::new(fix)
-        }
+        Self { fix: Rc::new(fix) }
     }
 
     /// use to make rustc happy.
@@ -92,8 +88,9 @@ impl<'a, S: Stream, A> Fix<'a, S, A> {
     /// let (res, _) = parser.parse("1110")?;
     /// assert_eq!(res, '0');
     /// ```
-    pub fn coerce<F>(f: F) -> F where
-        F: for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target=A> + 'f> + 'a
+    pub fn coerce<F>(f: F) -> F
+    where
+        F: for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target = A> + 'f> + 'a,
     {
         f
     }
@@ -125,8 +122,9 @@ impl<'a, S: Stream, A> Parser<S> for Fix<'a, S, A> {
 /// let (res, _) = parser.parse("1110")?;
 /// assert_eq!(res, '0');
 /// ```
-pub fn fix<'a, S: Stream, A, F>(fix: F) -> Fix<'a, S, A> where
-    F: for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target=A> + 'f> + 'a,
+pub fn fix<'a, S: Stream, A, F>(fix: F) -> Fix<'a, S, A>
+where
+    F: for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target = A> + 'f> + 'a,
 {
     Fix::new(fix)
 }
@@ -143,7 +141,7 @@ impl<S: Stream> Parser<S> for EOF<S> {
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
         match stream.next() {
             None => Ok(((), Stream::empty())),
-            _    => Err(ParseMsg::Except("expected eof.".to_string())),
+            _ => Err(ParseMsg::Except("expected eof.".to_string())),
         }
     }
 }
@@ -159,18 +157,21 @@ pub struct Or<A, B> {
 }
 
 impl<A, B> Or<A, B> {
-    pub fn new(a:A, b: B) -> Self {
+    pub fn new(a: A, b: B) -> Self {
         Self { a, b }
     }
 }
 
-impl<S: Stream + Clone, A, B> Parser<S> for Or<A, B> where
+impl<S: Stream + Clone, A, B> Parser<S> for Or<A, B>
+where
     A: Parser<S>,
-    B: Parser<S, Target=A::Target>,
+    B: Parser<S, Target = A::Target>,
 {
     type Target = A::Target;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
-        self.a.parse(stream.clone()).or_else(|_| self.b.parse(stream))
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+        self.a
+            .parse(stream.clone())
+            .or_else(|_| self.b.parse(stream))
     }
 }
 
@@ -182,7 +183,7 @@ pub struct AndR<A, B> {
 }
 
 impl<A, B> AndR<A, B> {
-    pub fn new(a:A, b: B) -> Self {
+    pub fn new(a: A, b: B) -> Self {
         Self { a, b }
     }
 }
@@ -204,7 +205,7 @@ pub struct AndL<A, B> {
 }
 
 impl<A, B> AndL<A, B> {
-    pub fn new(a:A, b: B) -> Self {
+    pub fn new(a: A, b: B) -> Self {
         Self { a, b }
     }
 }
@@ -232,10 +233,11 @@ impl<P, F> Map<P, F> {
 }
 
 impl<S: Stream, B, P: Parser<S>, F> Parser<S> for Map<P, F>
-    where F: Fn(P::Target) -> B,
+where
+    F: Fn(P::Target) -> B,
 {
     type Target = B;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
         let (res, stream) = self.parser.parse(stream)?;
         Ok(((self.f)(res), stream))
     }
@@ -255,19 +257,19 @@ impl<A, B, F> Map2<A, B, F> {
     }
 }
 
-impl<S: Stream, A, B, T, F> Parser<S> for Map2<A, B, F> where
+impl<S: Stream, A, B, T, F> Parser<S> for Map2<A, B, F>
+where
     A: Parser<S>,
     B: Parser<S>,
     F: Fn(A::Target, B::Target) -> T,
 {
     type Target = T;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
         let (a, stream) = self.a.parse(stream)?;
         let (b, stream) = self.b.parse(stream)?;
         Ok(((self.f)(a, b), stream))
     }
 }
-
 
 /// Applicative Combinator
 #[derive(Clone)]
@@ -282,13 +284,14 @@ impl<AB, A> App<AB, A> {
     }
 }
 
-impl<S: Stream, AB, A, T, F> Parser<S> for App<AB, A> where
+impl<S: Stream, AB, A, T, F> Parser<S> for App<AB, A>
+where
     A: Parser<S>,
-    AB: Parser<S, Target=F>,
+    AB: Parser<S, Target = F>,
     F: Fn(A::Target) -> T,
 {
     type Target = T;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
         let (f, stream) = self.ab.parse(stream)?;
         let (a, stream) = self.a.parse(stream)?;
         Ok((f(a), stream))
@@ -308,13 +311,14 @@ impl<P, F> AndThen<P, F> {
     }
 }
 
-impl<S: Stream, A, B, F> Parser<S> for AndThen<A, F> where
+impl<S: Stream, A, B, F> Parser<S> for AndThen<A, F>
+where
     A: Parser<S>,
     B: Parser<S>,
     F: Fn(A::Target) -> B,
 {
     type Target = B::Target;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
         let (a, stream) = self.parser.parse(stream)?;
         (self.f)(a).parse(stream)
     }
@@ -333,13 +337,14 @@ impl<A, B> Cons<A, B> {
     }
 }
 
-impl<S: Stream, A, B> Parser<S> for Cons<A, B> where
+impl<S: Stream, A, B> Parser<S> for Cons<A, B>
+where
     A: Parser<S>,
-    B: Parser<S, Target=Vec<A::Target>>,
+    B: Parser<S, Target = Vec<A::Target>>,
 {
     type Target = Vec<A::Target>;
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let (x , stream) = self.a.parse(stream)?;
+        let (x, stream) = self.a.parse(stream)?;
         let (mut xs, stream) = self.b.parse(stream)?;
         xs.insert(0, x);
         Ok((xs, stream))
@@ -359,13 +364,14 @@ impl<A, B> Snoc<A, B> {
     }
 }
 
-impl<S: Stream, A, B> Parser<S> for Snoc<A, B> where
-    A: Parser<S, Target=Vec<B::Target>>,
+impl<S: Stream, A, B> Parser<S> for Snoc<A, B>
+where
+    A: Parser<S, Target = Vec<B::Target>>,
     B: Parser<S>,
 {
     type Target = Vec<B::Target>;
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let (mut xs , stream) = self.a.parse(stream)?;
+        let (mut xs, stream) = self.a.parse(stream)?;
         let (x, stream) = self.b.parse(stream)?;
         xs.push(x);
         Ok((xs, stream))
@@ -385,13 +391,14 @@ impl<A, B> Chain<A, B> {
     }
 }
 
-impl<S: Stream, T, A, B> Parser<S> for Chain<A, B> where
-    A: Parser<S, Target=Vec<T>>,
-    B: Parser<S, Target=Vec<T>>,
+impl<S: Stream, T, A, B> Parser<S> for Chain<A, B>
+where
+    A: Parser<S, Target = Vec<T>>,
+    B: Parser<S, Target = Vec<T>>,
 {
     type Target = Vec<T>;
     fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let (mut xs , stream) = self.a.parse(stream)?;
+        let (mut xs, stream) = self.a.parse(stream)?;
         let (mut ys, stream) = self.b.parse(stream)?;
         xs.append(&mut ys);
         Ok((xs, stream))
@@ -412,7 +419,7 @@ impl<P> Many<P> {
 
 impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Many<P> {
     type Target = Vec<P::Target>;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
         let mut vec = vec![];
         let mut stream = stream;
         while let Ok((a, s)) = self.parser.parse(stream.clone()) {
@@ -438,7 +445,7 @@ impl<P> Many_<P> {
 
 impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Many_<P> {
     type Target = ();
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>  {
+    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
         let mut stream = stream;
         while let Ok((_, s)) = self.parser.parse(stream.clone()) {
             stream = s;
@@ -446,7 +453,6 @@ impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Many_<P> {
         Ok(((), stream))
     }
 }
-
 
 /// Some Combinator
 #[derive(Clone)]
@@ -529,13 +535,12 @@ pub struct Join<P> {
 
 impl<P> Join<P> {
     pub fn new(pp: P) -> Self {
-        Self {
-            pp
-        }
+        Self { pp }
     }
 }
 
-impl<S: Stream, P> Parser<S> for Join<P> where
+impl<S: Stream, P> Parser<S> for Join<P>
+where
     P: Parser<S>,
     P::Target: Parser<S>,
 {
@@ -548,12 +553,12 @@ impl<S: Stream, P> Parser<S> for Join<P> where
 
 /// Multiple Choice Combinator
 pub struct Choice<S, A> {
-    ps: Vec<Box<dyn Parser<S, Target=A>>>,
+    ps: Vec<Box<dyn Parser<S, Target = A>>>,
     _s: PhantomData<S>,
 }
 
 impl<S, A> Choice<S, A> {
-    pub fn new(ps: Vec<Box<dyn Parser<S, Target=A>>>) -> Self {
+    pub fn new(ps: Vec<Box<dyn Parser<S, Target = A>>>) -> Self {
         Self {
             ps,
             _s: PhantomData,
@@ -561,7 +566,7 @@ impl<S, A> Choice<S, A> {
     }
 }
 
-pub fn choice<S: Stream + Clone, A>(ps: Vec<Box<dyn Parser<S, Target=A>>>) -> Choice<S, A> {
+pub fn choice<S: Stream + Clone, A>(ps: Vec<Box<dyn Parser<S, Target = A>>>) -> Choice<S, A> {
     Choice::new(ps)
 }
 
