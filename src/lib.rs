@@ -1,3 +1,5 @@
+#![feature(pattern)]
+
 pub mod core;
 
 pub use crate::core::{
@@ -28,7 +30,7 @@ mod tests {
             .map(Result::unwrap)
     }
 
-    fn dynamic<S: Stream<Item = char> + Clone>() -> impl Parser<S, Target = char> {
+    fn dynamic<'a, S: Stream<Item = char> + Clone + 'a>() -> impl Parser<S, Target = char> + 'a {
         num().and_then(|n| {
             if n % 2 == 0 {
                 Box::new(satisfy(|ch: &char| ch.is_uppercase()))
@@ -52,56 +54,66 @@ mod tests {
 
     #[test]
     fn it_works() -> Result<(), ParseMsg> {
-        let src = ParseState::new("1111");
+        let mut src = ParseState::new("1111");
         let parser = char('1').many();
-        let (res, _) = parser.parse(src)?;
+        let res = parser.parse(&mut src)?;
         assert_eq!(res, vec!['1'; 4]);
+        assert_eq!(src.src.as_str(), "");
 
-        let src = "1111";
+        let mut src = "1111".chars();
         let parser = char('1').many();
-        let (res, _) = parser.parse(src)?;
+        let res = parser.parse(&mut src)?;
         assert_eq!(res, vec!['1'; 4]);
+        assert_eq!(src.as_str(), "");
 
-        let src = "11110";
+        let mut src = "11110".chars();
         let parser = fix(Box::new(Fix::coerce(|it| {
             Box::new(char('1').and_r(it).or(char('0')))
         })));
-        let (res, _) = parser.parse(src)?;
+        let res = parser.parse(&mut src)?;
         assert_eq!(res, '0');
+        assert_eq!(src.as_str(), "");
 
-        let src = ParseState::new("abcd");
-        let (res, _) = char('a').and_r(strg("bcd")).parse(src)?;
+        let mut src = ParseState::new("abcd");
+        let res = char('a').and_r(strg("bcd")).parse(&mut src)?;
         assert_eq!(res, "bcd");
+        assert_eq!(src.src.as_str(), "");
 
-        let src = "1234";
-        let (res, _) = num().parse(src)?;
+        let mut src = "1234".chars();
+        let res = num().parse(&mut src)?;
         assert_eq!(res, 1234);
+        assert_eq!(src.as_str(), "");
 
-        let src = "2H";
-        let (res, _) = dynamic().parse(src)?;
+        let mut src = "2H".chars();
+        let res = dynamic().parse(&mut src)?;
         assert_eq!(res, 'H');
+        assert_eq!(src.as_str(), "");
 
-        let src = "OIHFa".to_string();
-        let (res, _) = recursion().parse(&*src)?;
+        let mut src = "OIHFa".chars();
+        let res = recursion().parse(&mut src)?;
         assert_eq!(res, ());
+        assert_eq!(src.as_str(), "");
 
-        let src = "123";
+        let mut src = "123".chars();
         let parser = pure(|| vec![])
             .snoc(char('1'))
             .snoc(char('2'))
             .snoc(char('3'));
-        let (res, _) = parser.parse(src)?;
+        let res = parser.parse(&mut src)?;
         assert_eq!(res, vec!['1', '2', '3']);
+        assert_eq!(src.as_str(), "");
 
-        let src = "OIHFa";
-        let (res, _) = pure(|| recursion()).join().parse(src)?;
+        let mut src = "OIHFa".chars();
+        let res = pure(|| recursion()).join().parse(&mut src)?;
         assert_eq!(res, ());
+        assert_eq!(src.as_str(), "");
 
-        let src = "1122";
-        let (res, _) = char('1').many().chain(char('2').many()).parse(src)?;
+        let mut src = "1122".chars();
+        let res = char('1').many().chain(char('2').many()).parse(&mut src)?;
         assert_eq!(res, vec!['1', '1', '2', '2']);
+        assert_eq!(src.as_str(), "");
 
-        let src = "1122";
+        let mut src = "1122".chars();
         let parser = char('+')
             .or(char('-'))
             .tries()
@@ -111,8 +123,15 @@ mod tests {
             .map(Iterator::collect::<String>)
             .map(|s| s.parse::<i64>())
             .map(Result::unwrap);
-        let (res, _) = parser.parse(src)?;
+        let res = parser.parse(&mut src)?;
         assert_eq!(res, 1122);
+        assert_eq!(src.as_str(), "");
+
+        let mut src = ParseState::new("23");
+        let parser = char('1').wrap() >> char('1') | char('2');
+        let res = parser.parse(&mut src)?;
+        assert_eq!(res, '2');
+        assert_eq!(src.src.as_str(), "3");
 
         Ok(())
     }

@@ -3,6 +3,8 @@ use crate::core::state::ParseState;
 use crate::core::traits::parser::Parser;
 use crate::core::traits::stream::Stream;
 use std::marker::PhantomData;
+use std::str::pattern::{Pattern, Searcher};
+use std::str::Chars;
 
 /// Satisfy parser
 #[derive(Clone)]
@@ -25,10 +27,10 @@ where
     F: Fn(&S::Item) -> bool,
 {
     type Target = S::Item;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
         stream
             .next()
-            .filter(|(ch, _)| (self.satisfy)(ch))
+            .filter(|ch| (self.satisfy)(ch))
             .ok_or(ParseMsg::UnExcept(format!("unexpected token")))
     }
 }
@@ -56,12 +58,12 @@ impl<S> Char<S> {
     }
 }
 
-impl<'a> Parser<&'a str> for Char<&'a str> {
+impl<'a> Parser<Chars<'a>> for Char<Chars<'a>> {
     type Target = char;
-    fn parse(&self, stream: &'a str) -> Result<(Self::Target, &'a str), ParseMsg> {
-        let (ch, s) = stream.next().ok_or(ParseMsg::EOF)?;
+    fn parse(&self, stream: &mut Chars<'a>) -> Result<Self::Target, ParseMsg> {
+        let ch = stream.next().ok_or(ParseMsg::EOF)?;
         if self.ch == ch {
-            Ok((ch, s))
+            Ok(ch)
         } else {
             Err(ParseMsg::Except(format!(
                 "expected {}, found {}.",
@@ -73,14 +75,14 @@ impl<'a> Parser<&'a str> for Char<&'a str> {
 
 impl<'a> Parser<ParseState<'a>> for Char<ParseState<'a>> {
     type Target = char;
-    fn parse(&self, stream: ParseState<'a>) -> Result<(Self::Target, ParseState<'a>), ParseMsg> {
-        let (ch, ps) = stream.next().ok_or(ParseMsg::EOF)?;
+    fn parse(&self, stream: &mut ParseState<'a>) -> Result<Self::Target, ParseMsg> {
+        let ch = stream.next().ok_or(ParseMsg::EOF)?;
         if self.ch == ch {
-            Ok((ch, ps))
+            Ok(ch)
         } else {
             Err(ParseMsg::Except(format!(
                 "expected {}, found {} at {:?}.",
-                self.ch, ch, ps.pos
+                self.ch, ch, stream.pos
             )))
         }
     }
@@ -103,17 +105,15 @@ impl<'a, S> Strg<'a, S> {
     }
 }
 
-impl<'a, 's> Parser<&'s str> for Strg<'a, &'s str> {
+impl<'a, 's> Parser<Chars<'s>> for Strg<'a, Chars<'s>> {
     type Target = &'s str;
-    fn parse(&self, stream: &'s str) -> Result<(Self::Target, &'s str), ParseMsg> {
-        match stream.match_indices(self.s).next() {
-            Some((0, matched)) => {
-                let mut chars = self.s.chars();
-                let mut stream = stream;
-                while let Some(_) = chars.next() {
-                    stream = stream.next().unwrap().1;
-                }
-                Ok((matched, stream))
+    fn parse(&self, stream: &mut Chars<'s>) -> Result<Self::Target, ParseMsg> {
+        let src = stream.as_str();
+        match self.s.into_searcher(src).next_match() {
+            Some((0, i)) => {
+                let (matched, rest) = src.split_at(i);
+                *stream = rest.chars();
+                Ok(matched)
             }
             _ => Err(ParseMsg::Except(format!("expected {}", self.s))),
         }
@@ -122,15 +122,13 @@ impl<'a, 's> Parser<&'s str> for Strg<'a, &'s str> {
 
 impl<'a, 's> Parser<ParseState<'s>> for Strg<'a, ParseState<'s>> {
     type Target = &'s str;
-    fn parse(&self, stream: ParseState<'s>) -> Result<(Self::Target, ParseState<'s>), ParseMsg> {
-        match stream.src.match_indices(self.s).next() {
-            Some((0, matched)) => {
-                let mut chars = self.s.chars();
-                let mut stream = stream;
-                while let Some(_) = chars.next() {
-                    stream = stream.next().unwrap().1;
-                }
-                Ok((matched, stream))
+    fn parse(&self, stream: &mut ParseState<'s>) -> Result<Self::Target, ParseMsg> {
+        let src = stream.as_str();
+        match self.s.into_searcher(stream.as_str()).next_match() {
+            Some((0, i)) => {
+                let (matched, rest) = src.split_at(i);
+                stream.src = rest.chars();
+                Ok(matched)
             }
             _ => Err(ParseMsg::Except(format!(
                 "expected {} at {:?}",

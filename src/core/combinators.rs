@@ -21,8 +21,8 @@ impl<S, F> Pure<S, F> {
 
 impl<S: Stream, T, F: Fn() -> T> Parser<S> for Pure<S, F> {
     type Target = T;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        Ok(((self.x)(), stream))
+    fn parse(&self, _stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        Ok((self.x)())
     }
 }
 
@@ -51,7 +51,7 @@ impl<S, T> Failure<S, T> {
 
 impl<S: Stream, T> Parser<S> for Failure<S, T> {
     type Target = T;
-    fn parse(&self, _stream: S) -> Result<(Self::Target, S), ParseMsg> {
+    fn parse(&self, _stream: &mut S) -> Result<Self::Target, ParseMsg> {
         Err(self.msg.clone())
     }
 }
@@ -63,15 +63,15 @@ pub fn failure<S, T>(msg: ParseMsg) -> Failure<S, T> {
 }
 
 /// Fixed-point Combinator
-/// To deal with some recursion syntax.
+/// To deal with recursion syntax.
 pub struct Fix<'a, S: Stream, A> {
-    fix: Rc<dyn for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target = A> + 'f> + 'a>,
+    fix: Rc<dyn for<'f> Fn(&'f Self) -> Box<dyn Parser<S, Target = A> + 'f> + 'a>,
 }
 
 impl<'a, S: Stream, A> Fix<'a, S, A> {
     pub fn new<F>(fix: F) -> Self
     where
-        F: for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target = A> + 'f> + 'a,
+        F: for<'f> Fn(&'f Self) -> Box<dyn Parser<S, Target = A> + 'f> + 'a,
     {
         Self { fix: Rc::new(fix) }
     }
@@ -90,7 +90,7 @@ impl<'a, S: Stream, A> Fix<'a, S, A> {
     /// ```
     pub fn coerce<F>(f: F) -> F
     where
-        F: for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target = A> + 'f> + 'a,
+        F: for<'f> Fn(&'f Self) -> Box<dyn Parser<S, Target = A> + 'f> + 'a,
     {
         f
     }
@@ -106,7 +106,7 @@ impl<'a, S: Stream, A> Clone for Fix<'a, S, A> {
 
 impl<'a, S: Stream, A> Parser<S> for Fix<'a, S, A> {
     type Target = A;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
         (self.fix)(self).parse(stream)
     }
 }
@@ -124,7 +124,7 @@ impl<'a, S: Stream, A> Parser<S> for Fix<'a, S, A> {
 /// ```
 pub fn fix<'a, S: Stream, A, F>(fix: F) -> Fix<'a, S, A>
 where
-    F: for<'f> Fn(&'f Fix<S, A>) -> Box<dyn Parser<S, Target = A> + 'f> + 'a,
+    F: for<'f> Fn(&'f Fix<'a, S, A>) -> Box<dyn Parser<S, Target = A> + 'f> + 'a,
 {
     Fix::new(fix)
 }
@@ -138,9 +138,9 @@ impl<S> EOF<S> {
 }
 impl<S: Stream> Parser<S> for EOF<S> {
     type Target = ();
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
         match stream.next() {
-            None => Ok(((), Stream::empty())),
+            None => Ok(()),
             _ => Err(ParseMsg::Except("expected eof.".to_string())),
         }
     }
@@ -168,10 +168,16 @@ where
     B: Parser<S, Target = A::Target>,
 {
     type Target = A::Target;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        self.a
-            .parse(stream.clone())
-            .or_else(|_| self.b.parse(stream))
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        let tmp = stream.clone();
+        let fst = self.a.parse(stream);
+        match fst {
+            Err(_) => {
+                *stream = tmp;
+                self.b.parse(stream)
+            }
+            ok => ok,
+        }
     }
 }
 
@@ -190,10 +196,9 @@ impl<A, B> AndR<A, B> {
 
 impl<S: Stream, A: Parser<S>, B: Parser<S>> Parser<S> for AndR<A, B> {
     type Target = B::Target;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let (_, stream) = self.a.parse(stream)?;
-        let (b, stream) = self.b.parse(stream)?;
-        Ok((b, stream))
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        self.a.parse(stream)?;
+        self.b.parse(stream)
     }
 }
 
@@ -212,10 +217,10 @@ impl<A, B> AndL<A, B> {
 
 impl<S: Stream, A: Parser<S>, B: Parser<S>> Parser<S> for AndL<A, B> {
     type Target = A::Target;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let (a, stream) = self.a.parse(stream)?;
-        let (_, stream) = self.b.parse(stream)?;
-        Ok((a, stream))
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        let fst = self.a.parse(stream)?;
+        self.b.parse(stream)?;
+        Ok(fst)
     }
 }
 
@@ -237,9 +242,8 @@ where
     F: Fn(P::Target) -> B,
 {
     type Target = B;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let (res, stream) = self.parser.parse(stream)?;
-        Ok(((self.f)(res), stream))
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        self.parser.parse(stream).map(&self.f)
     }
 }
 
@@ -264,10 +268,10 @@ where
     F: Fn(A::Target, B::Target) -> T,
 {
     type Target = T;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let (a, stream) = self.a.parse(stream)?;
-        let (b, stream) = self.b.parse(stream)?;
-        Ok(((self.f)(a, b), stream))
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        let a = self.a.parse(stream)?;
+        let b = self.b.parse(stream)?;
+        Ok((self.f)(a, b))
     }
 }
 
@@ -291,10 +295,10 @@ where
     F: Fn(A::Target) -> T,
 {
     type Target = T;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let (f, stream) = self.ab.parse(stream)?;
-        let (a, stream) = self.a.parse(stream)?;
-        Ok((f(a), stream))
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        let f = self.ab.parse(stream)?;
+        let a = self.a.parse(stream)?;
+        Ok(f(a))
     }
 }
 
@@ -318,8 +322,8 @@ where
     F: Fn(A::Target) -> B,
 {
     type Target = B::Target;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let (a, stream) = self.parser.parse(stream)?;
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        let a = self.parser.parse(stream)?;
         (self.f)(a).parse(stream)
     }
 }
@@ -343,11 +347,11 @@ where
     B: Parser<S, Target = Vec<A::Target>>,
 {
     type Target = Vec<A::Target>;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let (x, stream) = self.a.parse(stream)?;
-        let (mut xs, stream) = self.b.parse(stream)?;
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        let x = self.a.parse(stream)?;
+        let mut xs = self.b.parse(stream)?;
         xs.insert(0, x);
-        Ok((xs, stream))
+        Ok(xs)
     }
 }
 
@@ -370,11 +374,11 @@ where
     B: Parser<S>,
 {
     type Target = Vec<B::Target>;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let (mut xs, stream) = self.a.parse(stream)?;
-        let (x, stream) = self.b.parse(stream)?;
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        let mut xs = self.a.parse(stream)?;
+        let x = self.b.parse(stream)?;
         xs.push(x);
-        Ok((xs, stream))
+        Ok(xs)
     }
 }
 
@@ -397,11 +401,11 @@ where
     B: Parser<S, Target = Vec<T>>,
 {
     type Target = Vec<T>;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let (mut xs, stream) = self.a.parse(stream)?;
-        let (mut ys, stream) = self.b.parse(stream)?;
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        let mut xs = self.a.parse(stream)?;
+        let mut ys = self.b.parse(stream)?;
         xs.append(&mut ys);
-        Ok((xs, stream))
+        Ok(xs)
     }
 }
 
@@ -419,15 +423,15 @@ impl<P> Many<P> {
 
 impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Many<P> {
     type Target = Vec<P::Target>;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
         let mut vec = vec![];
-        let mut stream = stream;
-        while let Ok((a, s)) = self.parser.parse(stream.clone()) {
+        let mut tmp = stream.clone();
+        while let Ok(a) = self.parser.parse(stream) {
             vec.push(a);
-            stream = s;
+            tmp = stream.clone();
         }
-
-        Ok((vec, stream))
+        *stream = tmp;
+        Ok(vec)
     }
 }
 
@@ -445,12 +449,13 @@ impl<P> Many_<P> {
 
 impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Many_<P> {
     type Target = ();
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let mut stream = stream;
-        while let Ok((_, s)) = self.parser.parse(stream.clone()) {
-            stream = s;
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        let mut tmp = stream.clone();
+        while let Ok(_) = self.parser.parse(stream) {
+            tmp = stream.clone();
         }
-        Ok(((), stream))
+        *stream = tmp;
+        Ok(())
     }
 }
 
@@ -468,18 +473,18 @@ impl<P> Some<P> {
 
 impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Some<P> {
     type Target = Vec<P::Target>;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
         let mut vec = vec![];
 
-        let (a, mut stream) = self.parser.parse(stream)?;
-        vec.push(a);
+        vec.push(self.parser.parse(stream)?);
 
-        while let Ok((a, s)) = self.parser.parse(stream.clone()) {
+        let mut tmp = stream.clone();
+        while let Ok(a) = self.parser.parse(stream) {
             vec.push(a);
-            stream = s;
+            tmp = stream.clone();
         }
-
-        Ok((vec, stream))
+        *stream = tmp;
+        Ok(vec)
     }
 }
 
@@ -497,12 +502,14 @@ impl<P> Some_<P> {
 
 impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Some_<P> {
     type Target = ();
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let (_, mut stream) = self.parser.parse(stream)?;
-        while let Ok((_, s)) = self.parser.parse(stream.clone()) {
-            stream = s;
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        self.parser.parse(stream)?;
+        let mut tmp = stream.clone();
+        while let Ok(_) = self.parser.parse(stream) {
+            tmp = stream.clone();
         }
-        Ok(((), stream))
+        *stream = tmp;
+        Ok(())
     }
 }
 
@@ -520,10 +527,15 @@ impl<P> Try<P> {
 
 impl<S: Stream + Clone, P: Parser<S>> Parser<S> for Try<P> {
     type Target = Option<P::Target>;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        match self.parser.parse(stream.clone()) {
-            Ok((a, stream)) => Ok((Some(a), stream)),
-            _ => Ok((None, stream)),
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        let tmp = stream.clone();
+        let tst = self.parser.parse(stream);
+        match tst {
+            Err(_) => {
+                *stream = tmp;
+                Ok(None)
+            }
+            ok => ok.map(Some),
         }
     }
 }
@@ -545,9 +557,8 @@ where
     P::Target: Parser<S>,
 {
     type Target = <<P as Parser<S>>::Target as Parser<S>>::Target;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
-        let (p, stream) = self.pp.parse(stream)?;
-        p.parse(stream)
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        self.pp.parse(stream)?.parse(stream)
     }
 }
 
@@ -572,11 +583,13 @@ pub fn choice<S: Stream + Clone, A>(ps: Vec<Box<dyn Parser<S, Target = A>>>) -> 
 
 impl<S: Stream + Clone, A> Parser<S> for Choice<S, A> {
     type Target = A;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
         for p in self.ps.iter() {
-            if let ok @ Ok(_) = p.parse(stream.clone()) {
+            let tmp = stream.clone();
+            if let ok @ Ok(_) = p.parse(stream) {
                 return ok;
             }
+            *stream = tmp;
         }
         Err(ParseMsg::Info("choice nothing.".to_string()))
     }

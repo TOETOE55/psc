@@ -3,6 +3,7 @@ use crate::core::combinators::{
     Some_, Try,
 };
 use crate::core::err::ParseMsg;
+use crate::core::ops::ParserWrapper;
 use crate::core::traits::stream::Stream;
 use std::rc::Rc;
 
@@ -35,7 +36,7 @@ pub trait Parser<S: Stream> {
     /// assert_eq!(res, None);
     /// assert_eq!(s, "123");
     /// ```
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg>;
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg>;
 
     /// Alternative combinator.
     /// The parser `p.or(q)` first applies `p`. If it succeeds, the value of `p` is returned.
@@ -352,6 +353,13 @@ pub trait Parser<S: Stream> {
         Try::new(self)
     }
 
+    fn wrap(self) -> ParserWrapper<S, Self>
+    where
+        Self: Sized,
+    {
+        ParserWrapper::from(self)
+    }
+
     /// Flat the parser which is constraint as Parser<S, Target=Parser<S>>
     /// It can be defined as `pp.join() ~ pp.and_then(|x| x)`
     fn join(self) -> Join<Self>
@@ -379,28 +387,28 @@ pub trait Parser<S: Stream> {
 
 impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for &P {
     type Target = P::Target;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
         (**self).parse(stream)
     }
 }
 
 impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for &mut P {
     type Target = P::Target;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
         (**self).parse(stream)
     }
 }
 
 impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for Box<P> {
     type Target = P::Target;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
         (**self).parse(stream)
     }
 }
 
 impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for Rc<P> {
     type Target = P::Target;
-    fn parse(&self, stream: S) -> Result<(Self::Target, S), ParseMsg> {
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
         (**self).parse(stream)
     }
 }
