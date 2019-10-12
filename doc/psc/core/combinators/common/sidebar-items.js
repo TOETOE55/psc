@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["char",""],["satisfy",""],["strg",""]],"struct":[["Char","Char matching parser"],["Satisfy","Satisfy parser"],["Strg","String matching parser"]]});

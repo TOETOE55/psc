@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["fix","Create an fixed-point combinator. # Example ``` use psc::core::combinators::extra::{fix, FixState}; use psc::Parser; let parser = fix(|it| Box::new(         char('1').and_r(it).or(char('0')))); // parser = '1' parser | '0'"]],"struct":[["Fix","Fixed-point Combinator To deal with recursion syntax.(and left recursion)"],["FixState",""]]});
