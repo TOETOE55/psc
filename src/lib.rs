@@ -1,5 +1,3 @@
-#![feature(pattern)]
-
 pub mod core;
 
 pub use crate::core::{

@@ -3,7 +3,6 @@ use crate::core::state::ParseState;
 use crate::core::traits::parser::Parser;
 use crate::core::traits::stream::Stream;
 use std::marker::PhantomData;
-use std::str::pattern::{Pattern, Searcher};
 use std::str::Chars;
 
 /// Satisfy parser
@@ -108,13 +107,14 @@ impl<'a, S> Strg<'a, S> {
 impl<'a, 's> Parser<Chars<'s>> for Strg<'a, Chars<'s>> {
     type Target = &'s str;
     fn parse(&self, stream: &mut Chars<'s>) -> Result<Self::Target, ParseMsg> {
+        let re = regex::Regex::new(self.s).unwrap();
         let src = stream.as_str();
-        match self.s.into_searcher(src).next_match() {
-            Some((0, i)) => {
-                let (matched, rest) = src.split_at(i);
+        match re.find(src) {
+            Some(range) if range.start() == 0 => {
+                let (matched, rest) = src.split_at(range.end());
                 *stream = rest.chars();
                 Ok(matched)
-            }
+            },
             _ => Err(ParseMsg::Except(format!("expected {}", self.s))),
         }
     }
@@ -123,13 +123,14 @@ impl<'a, 's> Parser<Chars<'s>> for Strg<'a, Chars<'s>> {
 impl<'a, 's> Parser<ParseState<'s>> for Strg<'a, ParseState<'s>> {
     type Target = &'s str;
     fn parse(&self, stream: &mut ParseState<'s>) -> Result<Self::Target, ParseMsg> {
+        let re = regex::Regex::new(self.s).unwrap();
         let src = stream.as_str();
-        match self.s.into_searcher(stream.as_str()).next_match() {
-            Some((0, i)) => {
-                let (matched, rest) = src.split_at(i);
+        match re.find(src) {
+            Some(range) if range.start() == 0 => {
+                let (matched, rest) = src.split_at(range.end());
                 stream.src = rest.chars();
                 Ok(matched)
-            }
+            },
             _ => Err(ParseMsg::Except(format!(
                 "expected {} at {:?}",
                 self.s, stream.pos
