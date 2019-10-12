@@ -24,17 +24,20 @@ pub trait Parser<S: Stream> {
     /// let parser = char('+').or(char('-')).tries();
     /// // ('+'|'-')?
     ///
-    /// let (res, s) = parser.parse("+123")?;
+    /// let mut src = "+123".chars();
+    /// let res = parser.parse(&mut src)?;
     /// assert_eq!(res, Some('+'));
-    /// assert_eq!(s, "123");
+    /// assert_eq!(src.as_str(), "123");
     ///
-    /// let (res, s) = parser.parse("-123")?;
+    /// let mut src = "-123".chars();
+    /// let res = parser.parse(&mut src)?;
     /// assert_eq!(res, Some('-'));
-    /// assert_eq!(s, "123");
+    /// assert_eq!(src.as_str(), "123");
     ///
-    /// let (res, s) = parser.parse("123")?;
+    /// let mut src = "123".chars();
+    /// let (res, s) = parser.parse(&mut src)?;
     /// assert_eq!(res, None);
-    /// assert_eq!(s, "123");
+    /// assert_eq!(src.as_str(), "123");
     /// ```
     fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg>;
 
@@ -53,21 +56,25 @@ pub trait Parser<S: Stream> {
     /// let parser = char('+').or(char('-').or(char('*'))).or(char('/'));
     /// // '+' | ('-' | '*') | '/'
     ///
-    /// let (res, s) = parser.parse("+123")?;
+    /// let mut src = "+123".chars();
+    /// let res = parser.parse(&mut src)?;
     /// assert_eq!(res, '+');
-    /// assert_eq!(s, "123");
+    /// assert_eq!(src.as_str(), "123");
     ///
-    /// let (res, s) = parser.parse("-123")?;
+    /// let mut src = "-123".chars();
+    /// let res = parser.parse(&mut src)?;
     /// assert_eq!(res, '-');
-    /// assert_eq!(s, "123");
+    /// assert_eq!(src.as_str(), "123");
     ///
-    /// let (res, s) = parser.parse("*123")?;
+    /// let mut src = "*123".chars();
+    /// let res = parser.parse(&mut src)?;
     /// assert_eq!(res, '*');
-    /// assert_eq!(s, "123");
+    /// assert_eq!(src.as_str(), "123");
     ///
-    /// let (res, s) = parser.parse("*123")?;
+    /// let mut src = "/123".chars();
+    /// let res = parser.parse(&mut src)?;
     /// assert_eq!(res, '/');
-    /// assert_eq!(s, "123");
+    /// assert_eq!(src.as_str(), "123");
     /// ```
     fn or<P>(self, other: P) -> Or<Self, P>
     where
@@ -91,14 +98,15 @@ pub trait Parser<S: Stream> {
     /// let parser = char('a').and_r(char('b').and_r(char('c'))).and_r(char('d'));
     /// // a(bc)d
     ///
-    /// let (res, s) = parser.parse("abcde")?;
+    /// let mut src = "abcde".chars();
+    /// let res = parser.parse(&mut src)?;
     /// assert_eq!(res, 'd');
-    /// assert_eq!(s, "e");
+    /// assert_eq!(src.as_str(), "e");
     ///
-    /// let res = parser.parse("ab").ok();
+    /// let res = parser.parse(&mut "ab".chars()).ok();
     /// assert_eq!(res, None);
     ///
-    /// let res = parser.parse("acde").ok();
+    /// let res = parser.parse(&mut "acde".chars()).ok();
     /// assert_eq!(res, None);
     /// ```
     fn and_r<P>(self, other: P) -> AndR<Self, P>
@@ -123,14 +131,15 @@ pub trait Parser<S: Stream> {
     /// let parser = char('a').and_r(char('b').and_l(char('c'))).and_l(char('d'));
     /// // a(bc)d
     ///
-    /// let (res, s) = parser.parse("abcde")?;
+    /// let mut src = "abcde".chars();
+    /// let res = parser.parse(&mut src)?;
     /// assert_eq!(res, 'b');
-    /// assert_eq!(s, "e");
+    /// assert_eq!(src.as_str(), "e");
     ///
-    /// let res = parser.parse("ab").ok();
+    /// let res = parser.parse(&mut "ab".chars()).ok();
     /// assert_eq!(res, None);
     ///
-    /// let res = parser.parse("acde").ok();
+    /// let res = parser.parse(&mut "acde".chars()).ok();
     /// assert_eq!(res, None);
     /// ```
     fn and_l<P>(self, other: P) -> AndL<Self, P>
@@ -153,9 +162,10 @@ pub trait Parser<S: Stream> {
     ///     .map(char::to_digit)
     ///     .map(Option::unwrap);
     ///
-    /// let (res, s) = parser.parse("1abc")?;
+    /// let mut src = "1abc".chars();
+    /// let res = parser.parse(&mut src)?;
     /// assert_eq!(res, 1);
-    /// assert_eq!(s, "abc");
+    /// assert_eq!(src.as_str(), "abc");
     /// ```
     fn map<B, F>(self, f: F) -> Map<Self, F>
     where
@@ -177,9 +187,8 @@ pub trait Parser<S: Stream> {
     /// let parser = pa.map2(pb, |a, b| a+b);
     /// // 1[0-9]
     ///
-    /// let (res, s) = parser.parse("123")?;
+    /// let res = parser.parse(&mut "123".chars())?;
     /// assert_eq!(res, 3);
-    /// assert_eq!(s, "3");
     /// ```
     fn map2<P, B, F>(self, other: P, f: F) -> Map2<Self, P, F>
     where
@@ -234,10 +243,10 @@ pub trait Parser<S: Stream> {
     ///     });
     /// // [A-Z]1 | [a-z]2
     ///
-    /// let (res, s) = parser.parse("H1");
+    /// let res = parser.parse(&mut "H1".chars());
     /// assert_eq!(res, '1');
     ///
-    /// let (res, s) = parser.parse("h2");
+    /// let res = parser.parse(&mut "h2".chars());
     /// assert_eq!(res, '2');
     /// ```
     fn and_then<P, F>(self, f: F) -> AndThen<Self, F>
@@ -257,9 +266,10 @@ pub trait Parser<S: Stream> {
     /// let parser = char('2').cons(char('3')).cons(char('3').many());
     /// // 23(3*)
     ///
-    /// let (res, s) = parser.parse(ParseState::new("23334"))?;
+    /// let mut src = ParseState::new("23334");
+    /// let res = parser.parse(&mut src)?;
     /// assert_eq!(res, vec!['2', '3', '3', '3']);
-    /// assert_eq!(s.src, "4");
+    /// assert_eq!(s.as_str(), "4");
     /// ```
     fn cons<P>(self, other: P) -> Cons<Self, P>
     where
@@ -277,9 +287,8 @@ pub trait Parser<S: Stream> {
     /// let parser = char('2').many().snoc(char('3'));
     /// // (3*)2
     ///
-    /// let (res, s) = parser.parse("3332")?;
+    /// let res = parser.parse(&mut "3332".chars())?;
     /// assert_eq!(res, vec!['3', '3', '3', '2']);
-    /// assert_eq!(s, "");
     /// ```
     fn snoc<P>(self, other: P) -> Snoc<Self, P>
     where
@@ -297,9 +306,8 @@ pub trait Parser<S: Stream> {
     /// let parser = char('2').many().chain(char('3').some());
     /// // (3*)(2+)
     ///
-    /// let (res, s) = parser.parse("33322")?;
+    /// let res = parser.parse(&mut "33322".chars())?;
     /// assert_eq!(res, vec!['3', '3', '3', '2', '2']);
-    /// assert_eq!(s, "");
     /// ```
     fn chain<T, P>(self, other: P) -> Chain<Self, P>
     where

@@ -3,6 +3,10 @@ use crate::{ParseMsg, Parser, Stream};
 use std::marker::PhantomData;
 use std::ops::{BitOr, Shl, Shr};
 
+/// Alg wrapper
+/// 1. `pa.wrap() >> pb ~ pa.and_r(pb)`
+/// 2. `pa.wrap() << pb ~ pa.and_l(pb)`
+/// 3. `pa.wrap() | pb ~ pa.or(pb)`
 pub struct ParserWrapper<S, P>(P, PhantomData<S>);
 
 impl<S, P> ParserWrapper<S, P> {
@@ -64,6 +68,16 @@ where
     }
 }
 
+/// Parse function wrapper
+/// ```
+/// use psc::{Stream, ParseMsg, satisfy, ParseFn, Parser, pure};
+/// fn parse_fn<S: Stream<Item = char> + Clone>(stream: &mut S) -> Result<(), ParseMsg> {
+///        let parser =
+///         (satisfy(|ch: &char| ch.is_uppercase()).wrap() >> ParseFn(parse_fn))
+///        | satisfy(|ch: &char| ch.is_lowercase()).wrap() >> pure(|| {});
+///        parser.parse(stream)
+///    }
+/// ```
 pub struct ParseFn<F>(pub F);
 
 impl<F> ParseFn<F> {

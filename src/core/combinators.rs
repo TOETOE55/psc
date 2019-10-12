@@ -85,7 +85,7 @@ impl<'a, S: Stream, A> Fix<'a, S, A> {
     ///            char('1').and_r(it).or(char('0'))));
     /// let parser = fix(Box::new(f));
     ///
-    /// let (res, _) = parser.parse("1110")?;
+    /// let res = parser.parse(&mut "1110".chars())?;
     /// assert_eq!(res, '0');
     /// ```
     pub fn coerce<F>(f: F) -> F
@@ -119,7 +119,7 @@ impl<'a, S: Stream, A> Parser<S> for Fix<'a, S, A> {
 ///         char('1').and_r(it).or(char('0'))));
 /// // parser = '1' parser | '0'
 ///
-/// let (res, _) = parser.parse("1110")?;
+/// let res = parser.parse(&mut "1110".chars())?;
 /// assert_eq!(res, '0');
 /// ```
 pub fn fix<'a, S: Stream, A, F>(fix: F) -> Fix<'a, S, A>
