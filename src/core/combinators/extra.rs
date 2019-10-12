@@ -73,8 +73,8 @@ impl<'a, 's, A> Fix<'a, 's, A> {
     /// assert_eq!(res, '0');
     /// ```
     pub fn coerce<F>(f: F) -> F
-        where
-            F: for<'f> Fn(&'f Self) -> Box<dyn Parser<FixState<'s>, Target = A> + 'f> + 'a,
+    where
+        F: for<'f> Fn(&'f Self) -> Box<dyn Parser<FixState<'s>, Target = A> + 'f> + 'a,
     {
         f
     }

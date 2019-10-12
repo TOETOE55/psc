@@ -1,1 +1,0 @@
-initSidebarItems({"trait":[["Parser","An interface for dealing with Parser Combinator. This is the main parser trait."]]});
