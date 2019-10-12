@@ -44,7 +44,7 @@ where
 /// Char matching parser
 #[derive(Clone)]
 pub struct Char<S> {
-    ch: char,
+    pub(crate) ch: char,
     _s: PhantomData<S>,
 }
 
@@ -94,7 +94,7 @@ pub fn char<S>(ch: char) -> Char<S> {
 /// String matching parser
 #[derive(Clone)]
 pub struct Strg<'a, S> {
-    s: &'a str,
+    pub(crate) s: &'a str,
     _s: PhantomData<S>,
 }
 

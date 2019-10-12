@@ -1,5 +1,6 @@
 use crate::core::traits::stream::Stream;
 use std::str::Chars;
+use crate::core::combinators::extra::FixState;
 
 #[derive(Clone, Debug)]
 pub struct ParseState<'a> {
@@ -17,7 +18,7 @@ pub struct Pos {
 
 impl<'a> ParseState<'a> {
     pub fn new(src: &'a str) -> Self {
-        ParseState {
+        Self {
             src: src.chars(),
             pos: Pos { col: 0, row: 0 },
             len: src.len(),
@@ -67,4 +68,4 @@ impl<'a> Iterator for ParseState<'a> {
     }
 }
 
-impl<'a> Stream for ParseState<'a> {}
+impl<'a> Stream for FixState<'a> {}

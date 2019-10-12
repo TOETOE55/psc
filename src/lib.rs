@@ -2,11 +2,12 @@ pub mod core;
 
 pub use crate::core::{
     combinators::{
+        ops::{ParseFn, ParserWrapper},
         common::{char, satisfy, strg},
+        extra,
         eof, failure, fix, pure,
     },
     err::ParseMsg,
-    ops::{ParseFn, ParserWrapper},
     state::{ParseState, Pos},
     traits::{parser::Parser, stream::Stream},
 };

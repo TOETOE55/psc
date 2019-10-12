@@ -3,9 +3,9 @@ use crate::core::combinators::{
     Some_, Try,
 };
 use crate::core::err::ParseMsg;
-use crate::core::ops::ParserWrapper;
 use crate::core::traits::stream::Stream;
 use std::rc::Rc;
+use crate::ParserWrapper;
 
 /// An interface for dealing with Parser Combinator.
 /// This is the main parser trait.
