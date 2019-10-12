@@ -5,6 +5,8 @@ use std::str::Chars;
 pub struct ParseState<'a> {
     pub(crate) src: Chars<'a>,
     pub(crate) pos: Pos,
+    pub(crate) len: usize,
+    pub(crate) idx: usize,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -18,6 +20,8 @@ impl<'a> ParseState<'a> {
         ParseState {
             src: src.chars(),
             pos: Pos { col: 0, row: 0 },
+            len: src.len(),
+            idx: 0,
         }
     }
 
@@ -27,6 +31,14 @@ impl<'a> ParseState<'a> {
 
     pub fn pos(&self) -> Pos {
         self.pos
+    }
+
+    pub fn index(&self) -> usize {
+        self.idx
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
     }
 }
 
@@ -49,6 +61,8 @@ impl<'a> Iterator for ParseState<'a> {
             },
         };
         self.pos = pos;
+        self.idx += 1;
+        self.len -= 1;
         Some(ch)
     }
 }

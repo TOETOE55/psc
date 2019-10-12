@@ -63,3 +63,25 @@ where
         ParserWrapper::new(self.0.and_r(rhs))
     }
 }
+
+pub struct ParseFn<F>(pub F);
+
+impl<F> ParseFn<F> {
+    pub fn call<A, B>(&self, arg: A) -> B
+    where
+        F: Fn(A) -> B,
+    {
+        (self.0)(arg)
+    }
+}
+
+impl<S: Stream, A, F> Parser<S> for ParseFn<F>
+where
+    F: for<'a> Fn(&'a mut S) -> Result<A, ParseMsg>,
+{
+    type Target = A;
+
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        self.call(stream)
+    }
+}

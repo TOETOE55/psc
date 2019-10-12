@@ -8,6 +8,7 @@ pub use crate::core::{
         eof, failure, fix, pure,
     },
     err::ParseMsg,
+    ops::{ParseFn, ParserWrapper},
     state::{ParseState, Pos},
     traits::{parser::Parser, stream::Stream},
 };
@@ -20,6 +21,7 @@ mod tests {
     use crate::core::state::ParseState;
     use crate::core::traits::parser::Parser;
     use crate::core::traits::stream::Stream;
+    use crate::ParseFn;
 
     fn num<S: Stream<Item = char> + Clone>() -> impl Parser<S, Target = u64> {
         satisfy(|ch: &char| ch.is_numeric())
@@ -41,7 +43,7 @@ mod tests {
         })
     }
 
-    fn recursion<'a, S: Stream<Item = char> + Clone>() -> impl Parser<S, Target = ()> {
+    fn recursion<S: Stream<Item = char> + Clone>() -> impl Parser<S, Target = ()> {
         fix(|this| {
             Box::new(
                 satisfy(|ch: &char| ch.is_uppercase())
@@ -50,6 +52,12 @@ mod tests {
             )
         })
         .and_r(pure(|| {}))
+    }
+
+    fn parse_fn<S: Stream<Item = char> + Clone>(stream: &mut S) -> Result<(), ParseMsg> {
+        let parser = (satisfy(|ch: &char| ch.is_uppercase()).wrap() >> ParseFn(parse_fn))
+            | satisfy(|ch: &char| ch.is_lowercase()).wrap() >> (pure(|| {}));
+        parser.parse(stream)
     }
 
     #[test]
@@ -91,6 +99,11 @@ mod tests {
 
         let mut src = "OIHFa".chars();
         let res = recursion().parse(&mut src)?;
+        assert_eq!(res, ());
+        assert_eq!(src.as_str(), "");
+
+        let mut src = "OIHFa".chars();
+        let res = ParseFn(parse_fn).parse(&mut src)?;
         assert_eq!(res, ());
         assert_eq!(src.as_str(), "");
 
