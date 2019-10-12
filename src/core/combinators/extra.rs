@@ -92,7 +92,7 @@ impl<'a, 's, A> Parser<FixState<'s>> for Fix<'a, 's, A> {
     type Target = A;
     fn parse(&self, stream: &mut FixState<'s>) -> Result<Self::Target, ParseMsg> {
         stream.depth += 1;
-        if stream.depth + stream.delegate.idx >= stream.delegate.len() {
+        if stream.depth >= stream.delegate.len() {
             return Err(ParseMsg::UnExcept("end of stream".to_string()))
         }
         (self.fix)(self).parse(stream)

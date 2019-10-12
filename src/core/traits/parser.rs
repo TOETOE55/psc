@@ -378,7 +378,7 @@ pub trait Parser<S: Stream> {
         Join::new(self)
     }
 
-    fn label(self, msg: String) -> Or<Self, Failure<S, Self::Target>>
+    fn expected(self, msg: String) -> Or<Self, Failure<S, Self::Target>>
     where
         Self: Sized,
     {
@@ -390,6 +390,13 @@ pub trait Parser<S: Stream> {
         Self: Sized,
     {
         self.or(Failure::new(ParseMsg::UnExcept(msg)))
+    }
+
+    fn info(self, msg: String) -> Or<Self, Failure<S, Self::Target>>
+    where
+        Self: Sized,
+    {
+        self.or(Failure::new(ParseMsg::Info(msg)))
     }
 }
 

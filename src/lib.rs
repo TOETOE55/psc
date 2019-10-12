@@ -14,13 +14,9 @@ pub use crate::core::{
 
 #[cfg(test)]
 mod tests {
-    use crate::core::combinators::common::{char, satisfy, strg};
-    use crate::core::combinators::{fix, pure, Fix};
-    use crate::core::err::ParseMsg;
-    use crate::core::state::ParseState;
-    use crate::core::traits::parser::Parser;
-    use crate::core::traits::stream::Stream;
-    use crate::ParseFn;
+
+    use crate::{ParseFn, Stream, satisfy, Parser, pure, fix, ParseMsg, ParseState, strg, char};
+    use crate::core::combinators::Fix;
 
     fn num<S: Stream<Item = char> + Clone>() -> impl Parser<S, Target = u64> {
         satisfy(|ch: &char| ch.is_numeric())
