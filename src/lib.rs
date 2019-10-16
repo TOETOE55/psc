@@ -9,7 +9,7 @@ pub use crate::core::{
     },
     err::ParseMsg,
     state::{ParseState, Pos},
-    traits::{parser::Parser, stream::Stream},
+    traits::{parser::Parser, stream::Stream, covert},
 };
 
 #[cfg(test)]
@@ -57,11 +57,11 @@ mod tests {
 
     #[test]
     fn it_works() -> Result<(), ParseMsg> {
-        let mut src = ParseState::new("1111");
+        let mut src = ParseState::new("11112");
         let parser = char('1').many();
         let res = parser.parse(&mut src)?;
         assert_eq!(res, vec!['1'; 4]);
-        assert_eq!(src.src.as_str(), "");
+        assert_eq!(src.src.as_str(), "2");
 
         let mut src = "1111".chars();
         let parser = char('1').many();
@@ -69,13 +69,13 @@ mod tests {
         assert_eq!(res, vec!['1'; 4]);
         assert_eq!(src.as_str(), "");
 
-        let mut src = "11110".chars();
+        let mut src = "111102".chars();
         let parser = fix(Box::new(Fix::coerce(|it| {
             Box::new(char('1').and_r(it).or(char('0')))
         })));
         let res = parser.parse(&mut src)?;
         assert_eq!(res, '0');
-        assert_eq!(src.as_str(), "");
+        assert_eq!(src.as_str(), "2");
 
         let mut src = ParseState::new("abcd");
         let res = char('a').and_r(strg("bcd")).parse(&mut src)?;

@@ -7,6 +7,7 @@ use crate::core::traits::parser::Parser;
 use crate::core::traits::stream::Stream;
 use std::marker::PhantomData;
 use std::rc::Rc;
+use crate::covert::IntoParser;
 
 /// Pure Combinator
 #[derive(Clone)]
@@ -82,12 +83,12 @@ impl<'a, S: Stream, A> Fix<'a, S, A> {
     /// # Example
     /// ```
     /// use psc::core::combinators::Fix;
-    /// use psc::{fix, Parser};
+    /// use psc::{fix, Parser, char};
     /// let f = Fix::coerce(|it| Box::new(
     ///            char('1').and_r(it).or(char('0'))));
     /// let parser = fix(Box::new(f));
     ///
-    /// let res = parser.parse(&mut "1110".chars())?;
+    /// let res = parser.parse(&mut "1110".chars()).unwrap();
     /// assert_eq!(res, '0');
     /// ```
     pub fn coerce<F>(f: F) -> F
@@ -116,12 +117,12 @@ impl<'a, S: Stream, A> Parser<S> for Fix<'a, S, A> {
 /// Create an fixed-point combinator.
 /// # Example
 /// ```
-/// use psc::{fix, Parser};
+/// use psc::{fix, Parser, char};
 /// let parser = fix(|it| Box::new(
 ///         char('1').and_r(it).or(char('0'))));
 /// // parser = '1' parser | '0'
 ///
-/// let res = parser.parse(&mut "1110".chars())?;
+/// let res = parser.parse(&mut "1110".chars()).unwrap();
 /// assert_eq!(res, '0');
 /// ```
 pub fn fix<'a, S: Stream, A, F>(fix: F) -> Fix<'a, S, A>
@@ -320,13 +321,13 @@ impl<P, F> AndThen<P, F> {
 impl<S: Stream, A, B, F> Parser<S> for AndThen<A, F>
 where
     A: Parser<S>,
-    B: Parser<S>,
+    B: IntoParser<S>,
     F: Fn(A::Target) -> B,
 {
     type Target = B::Target;
     fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
         let a = self.parser.parse(stream)?;
-        (self.f)(a).parse(stream)
+        (self.f)(a).into_parser().parse(stream)
     }
 }
 
@@ -556,11 +557,11 @@ impl<P> Join<P> {
 impl<S: Stream, P> Parser<S> for Join<P>
 where
     P: Parser<S>,
-    P::Target: Parser<S>,
+    P::Target: IntoParser<S>,
 {
-    type Target = <<P as Parser<S>>::Target as Parser<S>>::Target;
+    type Target = <<P as Parser<S>>::Target as IntoParser<S>>::Target;
     fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
-        self.pp.parse(stream)?.parse(stream)
+        self.pp.parse(stream)?.into_parser().parse(stream)
     }
 }
 

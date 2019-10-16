@@ -4,6 +4,7 @@ use crate::core::traits::parser::Parser;
 use crate::core::traits::stream::Stream;
 use std::marker::PhantomData;
 use std::str::Chars;
+use crate::core::traits::covert::IntoParser;
 
 /// Satisfy parser
 #[derive(Clone)]
@@ -87,6 +88,24 @@ impl<'a> Parser<ParseState<'a>> for Char<ParseState<'a>> {
     }
 }
 
+impl<'a> IntoParser<Chars<'a>> for char {
+    type Target = char;
+    type Parser = Char<Chars<'a>>;
+
+    fn into_parser(self) -> Self::Parser {
+        Char::new(self)
+    }
+}
+
+impl<'a> IntoParser<ParseState<'a>> for char {
+    type Target = char;
+    type Parser = Char<ParseState<'a>>;
+
+    fn into_parser(self) -> Self::Parser {
+        Char::new(self)
+    }
+}
+
 pub fn char<S>(ch: char) -> Char<S> {
     Char::new(ch)
 }
@@ -136,6 +155,24 @@ impl<'a, 's> Parser<ParseState<'s>> for Strg<'a, ParseState<'s>> {
                 self.s, stream.pos
             ))),
         }
+    }
+}
+
+impl<'a, 's> IntoParser<Chars<'s>> for &'a str {
+    type Target = &'s str;
+    type Parser = Strg<'a, Chars<'s>>;
+
+    fn into_parser(self) -> Self::Parser {
+        Strg::new(self)
+    }
+}
+
+impl<'a, 's> IntoParser<ParseState<'s>> for &'a str {
+    type Target = &'s str;
+    type Parser = Strg<'a, ParseState<'s>>;
+
+    fn into_parser(self) -> Self::Parser {
+        Strg::new(self)
     }
 }
 

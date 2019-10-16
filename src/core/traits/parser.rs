@@ -6,6 +6,7 @@ use crate::core::err::ParseMsg;
 use crate::core::traits::stream::Stream;
 use std::rc::Rc;
 use crate::ParserWrapper;
+use crate::core::traits::covert::IntoParser;
 
 /// An interface for dealing with Parser Combinator.
 /// This is the main parser trait.
@@ -25,17 +26,17 @@ pub trait Parser<S: Stream> {
     /// // ('+'|'-')?
     ///
     /// let mut src = "+123".chars();
-    /// let res = parser.parse(&mut src)?;
+    /// let res = parser.parse(&mut src).unwrap();
     /// assert_eq!(res, Some('+'));
     /// assert_eq!(src.as_str(), "123");
     ///
     /// let mut src = "-123".chars();
-    /// let res = parser.parse(&mut src)?;
+    /// let res = parser.parse(&mut src).unwrap();
     /// assert_eq!(res, Some('-'));
     /// assert_eq!(src.as_str(), "123");
     ///
     /// let mut src = "123".chars();
-    /// let (res, s) = parser.parse(&mut src)?;
+    /// let res = parser.parse(&mut src).unwrap();
     /// assert_eq!(res, None);
     /// assert_eq!(src.as_str(), "123");
     /// ```
@@ -57,31 +58,31 @@ pub trait Parser<S: Stream> {
     /// // '+' | ('-' | '*') | '/'
     ///
     /// let mut src = "+123".chars();
-    /// let res = parser.parse(&mut src)?;
+    /// let res = parser.parse(&mut src).unwrap();
     /// assert_eq!(res, '+');
     /// assert_eq!(src.as_str(), "123");
     ///
     /// let mut src = "-123".chars();
-    /// let res = parser.parse(&mut src)?;
+    /// let res = parser.parse(&mut src).unwrap();
     /// assert_eq!(res, '-');
     /// assert_eq!(src.as_str(), "123");
     ///
     /// let mut src = "*123".chars();
-    /// let res = parser.parse(&mut src)?;
+    /// let res = parser.parse(&mut src).unwrap();
     /// assert_eq!(res, '*');
     /// assert_eq!(src.as_str(), "123");
     ///
     /// let mut src = "/123".chars();
-    /// let res = parser.parse(&mut src)?;
+    /// let res = parser.parse(&mut src).unwrap();
     /// assert_eq!(res, '/');
     /// assert_eq!(src.as_str(), "123");
     /// ```
-    fn or<P>(self, other: P) -> Or<Self, P>
+    fn or<U>(self, other: U) -> Or<Self, U::Parser>
     where
         Self: Sized,
-        P: Parser<S, Target = Self::Target>,
+        U: IntoParser<S, Target=Self::Target>,
     {
-        Or::new(self, other)
+        Or::new(self, other.into_parser())
     }
 
     /// Sequence Combinator.
@@ -99,7 +100,7 @@ pub trait Parser<S: Stream> {
     /// // a(bc)d
     ///
     /// let mut src = "abcde".chars();
-    /// let res = parser.parse(&mut src)?;
+    /// let res = parser.parse(&mut src).unwrap();
     /// assert_eq!(res, 'd');
     /// assert_eq!(src.as_str(), "e");
     ///
@@ -109,12 +110,12 @@ pub trait Parser<S: Stream> {
     /// let res = parser.parse(&mut "acde".chars()).ok();
     /// assert_eq!(res, None);
     /// ```
-    fn and_r<P>(self, other: P) -> AndR<Self, P>
+    fn and_r<U>(self, other: U) -> AndR<Self, U::Parser>
     where
         Self: Sized,
-        P: Parser<S>,
+        U: IntoParser<S>,
     {
-        AndR::new(self, other)
+        AndR::new(self, other.into_parser())
     }
 
     /// Sequence Combinator.
@@ -132,7 +133,7 @@ pub trait Parser<S: Stream> {
     /// // a(bc)d
     ///
     /// let mut src = "abcde".chars();
-    /// let res = parser.parse(&mut src)?;
+    /// let res = parser.parse(&mut src).unwrap();
     /// assert_eq!(res, 'b');
     /// assert_eq!(src.as_str(), "e");
     ///
@@ -142,12 +143,12 @@ pub trait Parser<S: Stream> {
     /// let res = parser.parse(&mut "acde".chars()).ok();
     /// assert_eq!(res, None);
     /// ```
-    fn and_l<P>(self, other: P) -> AndL<Self, P>
+    fn and_l<U>(self, other: U) -> AndL<Self, U::Parser>
     where
         Self: Sized,
-        P: Parser<S>,
+        U: IntoParser<S>,
     {
-        AndL::new(self, other)
+        AndL::new(self, other.into_parser())
     }
 
     /// Map Combinator.
@@ -159,11 +160,11 @@ pub trait Parser<S: Stream> {
     /// ```
     /// use psc::{satisfy, Parser};
     /// let parser = satisfy(|ch: &char| ch.is_numeric())
-    ///     .map(char::to_digit)
+    ///     .map(|c: char| c.to_digit(10))
     ///     .map(Option::unwrap);
     ///
     /// let mut src = "1abc".chars();
-    /// let res = parser.parse(&mut src)?;
+    /// let res = parser.parse(&mut src).unwrap();
     /// assert_eq!(res, 1);
     /// assert_eq!(src.as_str(), "abc");
     /// ```
@@ -182,21 +183,21 @@ pub trait Parser<S: Stream> {
     /// ```
     /// use psc::{char, satisfy, Parser};
     ///
-    /// let pa = char('1').map(char::to_digit);
-    /// let pb = satisfy(|ch: &char| ch.is_numeric()).map(char::to_digit);
+    /// let pa = char('1').map(|c: char| c.to_digit(10)).map(Option::unwrap);
+    /// let pb = satisfy(|ch: &char| ch.is_numeric()).map(|c: char| c.to_digit(10)).map(Option::unwrap);
     /// let parser = pa.map2(pb, |a, b| a+b);
     /// // 1[0-9]
     ///
-    /// let res = parser.parse(&mut "123".chars())?;
+    /// let res = parser.parse(&mut "123".chars()).unwrap();
     /// assert_eq!(res, 3);
     /// ```
-    fn map2<P, B, F>(self, other: P, f: F) -> Map2<Self, P, F>
+    fn map2<U, B, F>(self, other: U, f: F) -> Map2<Self, U::Parser, F>
     where
         Self: Sized,
-        P: Parser<S>,
-        F: Fn(Self::Target, P::Target) -> B,
+        U: IntoParser<S>,
+        F: Fn(Self::Target, U::Target) -> B,
     {
-        Map2::new(self, other, f)
+        Map2::new(self, other.into_parser(), f)
     }
 
     /// Applicative Combinator.
@@ -214,13 +215,13 @@ pub trait Parser<S: Stream> {
     ///
     /// As a consequence of these laws, it will satisfy:
     /// 1. `pure(|| f).app(p) ~ p.map(f)`
-    fn app<P, T, F>(self, other: P) -> App<Self, P>
+    fn app<U, T, F>(self, other: U) -> App<Self, U::Parser>
     where
         Self: Parser<S, Target = F> + Sized,
-        P: Parser<S>,
-        F: Fn(P::Target) -> T,
+        U: IntoParser<S>,
+        F: Fn(U::Target) -> T,
     {
-        App::new(self, other)
+        App::new(self, other.into_parser())
     }
 
     /// Context Sensitive Sequence Combinator.
@@ -233,27 +234,27 @@ pub trait Parser<S: Stream> {
     ///
     /// # Example
     /// ```
-    /// use psc::{satisfy, Parser};
+    /// use psc::{satisfy, Parser, char};
     ///
-    /// let parser = satisfy(|ch: &char| ch.is_uppercase())
-    ///     .and_then(|upper| if upper {
+    /// let parser = satisfy(|_| true)
+    ///     .and_then(|upper: char| if upper.is_uppercase() {
     ///         char('1')
     ///     } else {
     ///         char('2')
     ///     });
     /// // [A-Z]1 | [a-z]2
     ///
-    /// let res = parser.parse(&mut "H1".chars());
+    /// let res = parser.parse(&mut "H1".chars()).unwrap();
     /// assert_eq!(res, '1');
     ///
-    /// let res = parser.parse(&mut "h2".chars());
+    /// let res = parser.parse(&mut "h2".chars()).unwrap();
     /// assert_eq!(res, '2');
     /// ```
-    fn and_then<P, F>(self, f: F) -> AndThen<Self, F>
+    fn and_then<U, F>(self, f: F) -> AndThen<Self, F>
     where
         Self: Sized,
-        P: Parser<S>,
-        F: Fn(Self::Target) -> P,
+        U: IntoParser<S>,
+        F: Fn(Self::Target) -> U,
     {
         AndThen::new(self, f)
     }
@@ -263,20 +264,20 @@ pub trait Parser<S: Stream> {
     /// ```
     /// use psc::{char, Parser, ParseState};
     ///
-    /// let parser = char('2').cons(char('3')).cons(char('3').many());
+    /// let parser = char('2').cons(char('3').cons(char('3').many()));
     /// // 23(3*)
     ///
     /// let mut src = ParseState::new("23334");
-    /// let res = parser.parse(&mut src)?;
+    /// let res = parser.parse(&mut src).unwrap();
     /// assert_eq!(res, vec!['2', '3', '3', '3']);
-    /// assert_eq!(s.as_str(), "4");
+    /// assert_eq!(src.as_str(), "4");
     /// ```
-    fn cons<P>(self, other: P) -> Cons<Self, P>
+    fn cons<U>(self, other: U) -> Cons<Self, U::Parser>
     where
         Self: Sized,
-        P: Parser<S, Target = Vec<Self::Target>>,
+        U: IntoParser<S, Target = Vec<Self::Target>>,
     {
-        Cons::new(self, other)
+        Cons::new(self, other.into_parser())
     }
 
     /// Parse in sequence, and collect the result.
@@ -284,18 +285,18 @@ pub trait Parser<S: Stream> {
     /// ```
     /// use psc::{char, Parser, ParseState};
     ///
-    /// let parser = char('2').many().snoc(char('3'));
+    /// let parser = char('3').many().snoc(char('2'));
     /// // (3*)2
     ///
-    /// let res = parser.parse(&mut "3332".chars())?;
+    /// let res = parser.parse(&mut "3332".chars()).unwrap();
     /// assert_eq!(res, vec!['3', '3', '3', '2']);
     /// ```
-    fn snoc<P>(self, other: P) -> Snoc<Self, P>
+    fn snoc<U>(self, other: U) -> Snoc<Self, U::Parser>
     where
-        Self: Parser<S, Target = Vec<P::Target>> + Sized,
-        P: Parser<S>,
+        Self: Parser<S, Target = Vec<U::Target>> + Sized,
+        U: IntoParser<S>,
     {
-        Snoc::new(self, other)
+        Snoc::new(self, other.into_parser())
     }
 
     /// Parse in sequence, and collect the result.
@@ -303,18 +304,18 @@ pub trait Parser<S: Stream> {
     /// ```
     /// use psc::{char, Parser, ParseState};
     ///
-    /// let parser = char('2').many().chain(char('3').some());
+    /// let parser = char('3').many().chain(char('2').some());
     /// // (3*)(2+)
     ///
-    /// let res = parser.parse(&mut "33322".chars())?;
+    /// let res = parser.parse(&mut "33322".chars()).unwrap();
     /// assert_eq!(res, vec!['3', '3', '3', '2', '2']);
     /// ```
-    fn chain<T, P>(self, other: P) -> Chain<Self, P>
+    fn chain<T, U>(self, other: U) -> Chain<Self, U::Parser>
     where
         Self: Parser<S, Target = Vec<T>> + Sized,
-        P: Parser<S, Target = Vec<T>>,
+        U: IntoParser<S, Target = Vec<T>>,
     {
-        Chain::new(self, other)
+        Chain::new(self, other.into_parser())
     }
 
     /// Kleene Closure Combinator
@@ -373,7 +374,7 @@ pub trait Parser<S: Stream> {
     fn join(self) -> Join<Self>
     where
         Self: Sized,
-        Self::Target: Parser<S>,
+        Self::Target: IntoParser<S>,
     {
         Join::new(self)
     }

@@ -2,6 +2,7 @@ use crate::core::combinators::{AndL, AndR, Or};
 use crate::{ParseMsg, Parser, Stream};
 use std::marker::PhantomData;
 use std::ops::{BitOr, Shl, Shr};
+use crate::covert::IntoParser;
 
 /// Alg wrapper
 /// 1. `pa.wrap() >> pb ~ pa.and_r(pb)`
@@ -27,43 +28,43 @@ impl<S: Stream, P: Parser<S>> Parser<S> for ParserWrapper<S, P> {
     }
 }
 
-impl<S: Stream, P: Parser<S>> From<P> for ParserWrapper<S, P> {
+impl<S: Stream, P: IntoParser<S>> From<P> for ParserWrapper<S, P> {
     fn from(parser: P) -> Self {
         ParserWrapper::new(parser)
     }
 }
 
-impl<S: Stream, P, Q> BitOr<P> for ParserWrapper<S, Q>
+impl<S: Stream, Lhs, Rhs> BitOr<Rhs> for ParserWrapper<S, Lhs>
 where
-    P: Parser<S>,
-    Q: Parser<S, Target = P::Target>,
+    Lhs: Parser<S>,
+    Rhs: IntoParser<S, Target = Lhs::Target>,
 {
-    type Output = ParserWrapper<S, Or<Q, P>>;
-    fn bitor(self, rhs: P) -> Self::Output {
+    type Output = ParserWrapper<S, Or<Lhs, Rhs::Parser>>;
+    fn bitor(self, rhs: Rhs) -> Self::Output {
         ParserWrapper::new(self.0.or(rhs))
     }
 }
 
-impl<S: Stream, P, Q> Shl<P> for ParserWrapper<S, Q>
+impl<S: Stream, Lhs, Rhs> Shl<Rhs> for ParserWrapper<S, Lhs>
 where
-    P: Parser<S>,
-    Q: Parser<S>,
+    Lhs: Parser<S>,
+    Rhs: IntoParser<S>,
 {
-    type Output = ParserWrapper<S, AndL<Q, P>>;
+    type Output = ParserWrapper<S, AndL<Lhs, Rhs::Parser>>;
 
-    fn shl(self, rhs: P) -> Self::Output {
+    fn shl(self, rhs: Rhs) -> Self::Output {
         ParserWrapper::new(self.0.and_l(rhs))
     }
 }
 
-impl<S: Stream, P, Q> Shr<P> for ParserWrapper<S, Q>
+impl<S: Stream, Lhs, Rhs> Shr<Rhs> for ParserWrapper<S, Lhs>
 where
-    P: Parser<S>,
-    Q: Parser<S>,
+    Lhs: Parser<S>,
+    Rhs: IntoParser<S>,
 {
-    type Output = ParserWrapper<S, AndR<Q, P>>;
+    type Output = ParserWrapper<S, AndR<Lhs, Rhs::Parser>>;
 
-    fn shr(self, rhs: P) -> Self::Output {
+    fn shr(self, rhs: Rhs) -> Self::Output {
         ParserWrapper::new(self.0.and_r(rhs))
     }
 }
@@ -99,3 +100,4 @@ where
         self.call(stream)
     }
 }
+

@@ -1,6 +1,7 @@
 use crate::{ParseState, Pos, Stream, Parser, ParseMsg};
 use std::rc::Rc;
 use crate::core::combinators::common::{Char, Strg};
+use crate::covert::IntoParser;
 
 #[derive(Clone, Debug)]
 pub struct FixState<'a> {
@@ -64,12 +65,12 @@ impl<'a, 's, A> Fix<'a, 's, A> {
     /// # Example
     /// ```
     /// use psc::core::combinators::extra::{Fix, fix, FixState};
-    /// use psc::Parser;
+    /// use psc::{Parser, char};
     /// let f = Fix::coerce(|it| Box::new(
-    ///            char('1').and_r(it).or(char('0'))));
+    ///            char('1').wrap() >> it | '0'));
     /// let parser = fix(Box::new(f));
     ///
-    /// let res = parser.parse(&mut FixState::new("1110"))?;
+    /// let res = parser.parse(&mut FixState::new("1110")).unwrap();
     /// assert_eq!(res, '0');
     /// ```
     pub fn coerce<F>(f: F) -> F
@@ -92,7 +93,7 @@ impl<'a, 's, A> Parser<FixState<'s>> for Fix<'a, 's, A> {
     type Target = A;
     fn parse(&self, stream: &mut FixState<'s>) -> Result<Self::Target, ParseMsg> {
         stream.depth += 1;
-        if stream.depth >= stream.delegate.len() {
+        if stream.depth >= stream.delegate.len() + stream.delegate.index() + 1 {
             return Err(ParseMsg::UnExcept("end of stream".to_string()))
         }
         (self.fix)(self).parse(stream)
@@ -103,13 +104,14 @@ impl<'a, 's, A> Parser<FixState<'s>> for Fix<'a, 's, A> {
 /// # Example
 /// ```
 /// use psc::core::combinators::extra::{fix, FixState};
-/// use psc::Parser;
+/// use psc::{Parser, char};
 /// let parser = fix(|it| Box::new(
-///         char('1').and_r(it).or(char('0'))));
+///         char('1').wrap() >> it | '0'));
 /// // parser = '1' parser | '0'
 ///
-/// let res = parser.parse(&mut FixState::new("1110"))?;
-/// assert_eq!(res, '0');
+/// let mut src = FixState::new("1110");
+/// let res = parser.parse(&mut src);
+/// assert_eq!(src.as_str(), "");
 /// ```
 pub fn fix<'a, 's, A, F>(fix: F) -> Fix<'a, 's, A>
 where
@@ -133,6 +135,15 @@ impl<'a> Parser<FixState<'a>> for Char<FixState<'a>> {
     }
 }
 
+impl<'a> IntoParser<FixState<'a>> for char {
+    type Target = char;
+    type Parser = Char<FixState<'a>>;
+
+    fn into_parser(self) -> Self::Parser {
+        Char::new(self)
+    }
+}
+
 impl<'a, 's> Parser<FixState<'s>> for Strg<'a, FixState<'s>> {
     type Target = &'s str;
     fn parse(&self, stream: &mut FixState<'s>) -> Result<Self::Target, ParseMsg> {
@@ -152,21 +163,29 @@ impl<'a, 's> Parser<FixState<'s>> for Strg<'a, FixState<'s>> {
     }
 }
 
+impl<'a, 's> IntoParser<FixState<'s>> for &'a str {
+    type Target = &'s str;
+    type Parser = Strg<'a, FixState<'s>>;
+
+    fn into_parser(self) -> Self::Parser {
+        Strg::new(self)
+    }
+}
 
 #[cfg(test)]
 mod test {
     use crate::extra::{fix, FixState};
-    use crate::{Parser, char};
+    use crate::Parser;
 
     #[test]
     fn left_rec() {
         let parser = fix(|it| Box::new(
-            it.wrap() >> char('1') | char('0')
+            it.wrap() >> '1' | '0'
         ));
         // parser = parser  '1' | '0'
-        let mut src = FixState::new("01112");
+        let mut src = FixState::new("0111");
         let res = parser.parse(&mut src).unwrap();
         assert_eq!(res, '1');
-        assert_eq!(src.as_str(), "2");
+        assert_eq!(src.as_str(), "");
     }
 }
