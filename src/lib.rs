@@ -2,10 +2,10 @@ pub mod core;
 
 pub use crate::core::{
     combinators::{
-        common::{Char, char, Satisfy, satisfy, Strg, strg, Regex, reg},
-        eof, EOF, extra, failure, Failure, fix, Fix,
+        common::{char, reg, satisfy, strg, Char, Regex, Satisfy, Strg},
+        eof, extra, failure, fix,
         ops::{ParseFn, ParserWrapper},
-        pure,
+        pure, Failure, Fix, EOF,
     },
     err::ParseMsg,
     state::{ParseState, Pos},
@@ -16,12 +16,12 @@ pub use crate::core::{
 mod tests {
 
     use crate::core::combinators::Fix;
-    use crate::{char, fix, pure, satisfy, strg, ParseFn, ParseMsg, ParseState, Parser, Stream, reg};
+    use crate::{
+        char, fix, pure, reg, satisfy, strg, ParseFn, ParseMsg, ParseState, Parser, Stream,
+    };
 
     fn num<'a>() -> impl Parser<ParseState<'a>, Target = u64> {
-        reg("[0-9]+")
-            .map(str::parse::<u64>)
-            .map(Result::unwrap)
+        reg("[0-9]+").map(str::parse::<u64>).map(Result::unwrap)
     }
 
     fn dynamic<'a>() -> impl Parser<ParseState<'a>, Target = char> {

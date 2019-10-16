@@ -1,8 +1,7 @@
 use crate::core::combinators::common::{Char, Strg};
 use crate::covert::IntoParser;
-use crate::{ParseMsg, ParseState, Parser, Pos, Stream, Regex};
+use crate::{ParseMsg, ParseState, Parser, Pos, Regex, Stream};
 use std::rc::Rc;
-
 
 #[derive(Clone, Debug)]
 pub struct FixState<'a> {
@@ -45,7 +44,6 @@ impl<'a> Iterator for FixState<'a> {
         self.delegate.next()
     }
 }
-
 
 impl<'a> Stream for FixState<'a> {}
 
@@ -95,7 +93,7 @@ impl<'a, 's, A> Parser<FixState<'s>> for Fix<'a, 's, A> {
     type Target = A;
     fn parse(&self, stream: &mut FixState<'s>) -> Result<Self::Target, ParseMsg> {
         stream.depth += 1;
-        if stream.depth >= stream.delegate.len() + stream.delegate.index() + 1 {
+        if stream.depth > stream.delegate.len() + stream.delegate.index() {
             return Err(ParseMsg::UnExcept("end of stream".to_string()));
         }
         (self.fix)(self).parse(stream)
@@ -169,7 +167,8 @@ impl<'s> Parser<FixState<'s>> for Regex<FixState<'s>> {
             }
             _ => Err(ParseMsg::Except(format!(
                 "expected {} at {:?}",
-                self.delegate().as_str(), stream.pos()
+                self.delegate().as_str(),
+                stream.pos()
             ))),
         }
     }

@@ -215,7 +215,7 @@ impl<S: Stream> From<regex::Regex> for Regex<S> {
     fn from(re: regex::Regex) -> Self {
         Self {
             delegate: re,
-            _s: PhantomData
+            _s: PhantomData,
         }
     }
 }
@@ -230,7 +230,10 @@ impl<'s> Parser<Chars<'s>> for Regex<Chars<'s>> {
                 *stream = rest.chars();
                 Ok(matched)
             }
-            _ => Err(ParseMsg::Except(format!("expected {}", self.delegate.as_str()))),
+            _ => Err(ParseMsg::Except(format!(
+                "expected {}",
+                self.delegate.as_str()
+            ))),
         }
     }
 }
@@ -249,7 +252,8 @@ impl<'s> Parser<ParseState<'s>> for Regex<ParseState<'s>> {
             }
             _ => Err(ParseMsg::Except(format!(
                 "expected {} at {:?}",
-                self.delegate.as_str(), stream.pos
+                self.delegate.as_str(),
+                stream.pos
             ))),
         }
     }
