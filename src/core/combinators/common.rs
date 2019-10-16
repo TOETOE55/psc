@@ -146,9 +146,10 @@ impl<'a, 's> Parser<ParseState<'s>> for Strg<'a, ParseState<'s>> {
         let src = stream.as_str();
         match re.find(src) {
             Some(range) if range.start() == 0 => {
-                let (matched, rest) = src.split_at(range.end());
-                stream.src = rest.chars();
-                Ok(matched)
+                for _ in 0..range.end() {
+                    stream.next();
+                }
+                Ok(range.as_str())
             }
             _ => Err(ParseMsg::Except(format!(
                 "expected {} at {:?}",

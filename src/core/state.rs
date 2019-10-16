@@ -46,7 +46,7 @@ impl<'a> Iterator for ParseState<'a> {
     type Item = char;
     fn next(&mut self) -> Option<Self::Item> {
         let ch = self.src.next()?;
-        let pos = match ch {
+        self.pos = match ch {
             '\n' => Pos {
                 row: self.pos.row + 1,
                 ..self.pos
@@ -60,9 +60,7 @@ impl<'a> Iterator for ParseState<'a> {
                 ..self.pos
             },
         };
-        self.pos = pos;
         self.idx += 1;
-        self.len -= 1;
         Some(ch)
     }
 }
