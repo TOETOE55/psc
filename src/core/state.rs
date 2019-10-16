@@ -1,6 +1,6 @@
+use crate::core::combinators::extra::FixState;
 use crate::core::traits::stream::Stream;
 use std::str::Chars;
-use crate::core::combinators::extra::FixState;
 
 #[derive(Clone, Debug)]
 pub struct ParseState<'a> {

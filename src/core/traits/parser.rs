@@ -3,10 +3,10 @@ use crate::core::combinators::{
     Some_, Try,
 };
 use crate::core::err::ParseMsg;
-use crate::core::traits::stream::Stream;
-use std::rc::Rc;
-use crate::ParserWrapper;
 use crate::core::traits::covert::IntoParser;
+use crate::core::traits::stream::Stream;
+use crate::ParserWrapper;
+use std::rc::Rc;
 
 /// An interface for dealing with Parser Combinator.
 /// This is the main parser trait.
@@ -80,7 +80,7 @@ pub trait Parser<S: Stream> {
     fn or<U>(self, other: U) -> Or<Self, U::Parser>
     where
         Self: Sized,
-        U: IntoParser<S, Target=Self::Target>,
+        U: IntoParser<S, Target = Self::Target>,
     {
         Or::new(self, other.into_parser())
     }

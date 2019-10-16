@@ -1,13 +1,13 @@
 pub mod common;
-pub mod ops;
 pub mod extra;
+pub mod ops;
 
 use crate::core::err::ParseMsg;
 use crate::core::traits::parser::Parser;
 use crate::core::traits::stream::Stream;
+use crate::covert::IntoParser;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use crate::covert::IntoParser;
 
 /// Pure Combinator
 #[derive(Clone)]

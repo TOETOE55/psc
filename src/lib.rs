@@ -2,21 +2,21 @@ pub mod core;
 
 pub use crate::core::{
     combinators::{
-        ops::{ParseFn, ParserWrapper},
         common::{char, satisfy, strg},
-        extra,
-        eof, failure, fix, pure,
+        eof, extra, failure, fix,
+        ops::{ParseFn, ParserWrapper},
+        pure,
     },
     err::ParseMsg,
     state::{ParseState, Pos},
-    traits::{parser::Parser, stream::Stream, covert},
+    traits::{covert, parser::Parser, stream::Stream},
 };
 
 #[cfg(test)]
 mod tests {
 
-    use crate::{ParseFn, Stream, satisfy, Parser, pure, fix, ParseMsg, ParseState, strg, char};
     use crate::core::combinators::Fix;
+    use crate::{char, fix, pure, satisfy, strg, ParseFn, ParseMsg, ParseState, Parser, Stream};
 
     fn num<S: Stream<Item = char> + Clone>() -> impl Parser<S, Target = u64> {
         satisfy(|ch: &char| ch.is_numeric())
