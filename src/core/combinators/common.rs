@@ -5,7 +5,6 @@ use crate::core::traits::parser::Parser;
 use crate::core::traits::stream::Stream;
 use std::marker::PhantomData;
 use std::str::Chars;
-use regex::Regex;
 
 /// Satisfy parser
 #[derive(Clone)]
@@ -183,43 +182,79 @@ pub fn strg<S>(s: &str) -> Strg<S> {
 
 /// regex
 /// ```
-/// use regex::Regex;
-/// use psc::Parser;
-/// let re = Regex::new("(0+)(1*)").unwrap();
+/// use psc::{Parser, reg};
+/// let re = reg("(0+)(1*)");
 /// let mut src = "0000111112".chars();
 /// let res = re.parse(&mut src).unwrap();
 /// assert_eq!(res, "000011111");
 /// ```
-impl<'s> Parser<Chars<'s>> for Regex {
+
+pub struct Regex<S> {
+    delegate: regex::Regex,
+    _s: PhantomData<S>,
+}
+
+impl<S> Regex<S> {
+    pub fn new(re: &str) -> Result<Self, regex::Error> {
+        regex::Regex::new(re).map(|delegate| Self {
+            delegate,
+            _s: PhantomData,
+        })
+    }
+
+    pub fn delegate(&self) -> &regex::Regex {
+        &self.delegate
+    }
+
+    pub fn unwrap(self) -> regex::Regex {
+        self.delegate
+    }
+}
+
+impl<S: Stream> From<regex::Regex> for Regex<S> {
+    fn from(re: regex::Regex) -> Self {
+        Self {
+            delegate: re,
+            _s: PhantomData
+        }
+    }
+}
+
+impl<'s> Parser<Chars<'s>> for Regex<Chars<'s>> {
     type Target = &'s str;
     fn parse(&self, stream: &mut Chars<'s>) -> Result<Self::Target, ParseMsg> {
         let src = stream.as_str();
-        match self.find(src) {
+        match self.delegate.find(src) {
             Some(range) if range.start() == 0 => {
                 let (matched, rest) = src.split_at(range.end());
                 *stream = rest.chars();
                 Ok(matched)
             }
-            _ => Err(ParseMsg::Except(format!("expected {}", self.as_str()))),
+            _ => Err(ParseMsg::Except(format!("expected {}", self.delegate.as_str()))),
         }
     }
 }
 
-impl<'s> Parser<ParseState<'s>> for Regex {
+impl<'s> Parser<ParseState<'s>> for Regex<ParseState<'s>> {
     type Target = &'s str;
 
     fn parse(&self, stream: &mut ParseState<'s>) -> Result<Self::Target, ParseMsg> {
         let src = stream.as_str();
-        match self.find(src) {
+        match self.delegate.find(src) {
             Some(range) if range.start() == 0 => {
-                let (matched, rest) = src.split_at(range.end());
-                stream.src = rest.chars();
-                Ok(matched)
+                for _ in 0..range.end() {
+                    stream.next();
+                }
+                Ok(range.as_str())
             }
             _ => Err(ParseMsg::Except(format!(
                 "expected {} at {:?}",
-                self.as_str(), stream.pos
+                self.delegate.as_str(), stream.pos
             ))),
         }
     }
+}
+
+pub fn reg<S: Stream>(re: &str) -> Regex<S> {
+    Regex::new(re).unwrap()
 }

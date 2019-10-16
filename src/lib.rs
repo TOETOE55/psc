@@ -2,8 +2,8 @@ pub mod core;
 
 pub use crate::core::{
     combinators::{
-        common::{char, satisfy, strg},
-        eof, extra, failure, fix,
+        common::{Char, char, Satisfy, satisfy, Strg, strg, Regex, reg},
+        eof, EOF, extra, failure, Failure, fix, Fix,
         ops::{ParseFn, ParserWrapper},
         pure,
     },
@@ -16,22 +16,19 @@ pub use crate::core::{
 mod tests {
 
     use crate::core::combinators::Fix;
-    use crate::{char, fix, pure, satisfy, strg, ParseFn, ParseMsg, ParseState, Parser, Stream};
+    use crate::{char, fix, pure, satisfy, strg, ParseFn, ParseMsg, ParseState, Parser, Stream, reg};
 
-    fn num<S: Stream<Item = char> + Clone>() -> impl Parser<S, Target = u64> {
-        satisfy(|ch: &char| ch.is_numeric())
-            .some()
-            .map(Vec::into_iter)
-            .map(Iterator::collect::<String>)
-            .map(|num| num.parse::<u64>())
+    fn num<'a>() -> impl Parser<ParseState<'a>, Target = u64> {
+        reg("[0-9]+")
+            .map(str::parse::<u64>)
             .map(Result::unwrap)
     }
 
-    fn dynamic<'a, S: Stream<Item = char> + Clone + 'a>() -> impl Parser<S, Target = char> + 'a {
+    fn dynamic<'a>() -> impl Parser<ParseState<'a>, Target = char> {
         num().and_then(|n| {
             if n % 2 == 0 {
                 Box::new(satisfy(|ch: &char| ch.is_uppercase()))
-                    as Box<dyn Parser<S, Target = char>>
+                    as Box<dyn Parser<ParseState<'a>, Target = char>>
             } else {
                 Box::new(satisfy(|ch: &char| ch.is_lowercase()))
             }
@@ -82,17 +79,17 @@ mod tests {
         assert_eq!(res, "bcd");
         assert_eq!(src.src.as_str(), "");
 
-        let mut src = "1234".chars();
+        let mut src = ParseState::new("1234");
         let res = num().parse(&mut src)?;
         assert_eq!(res, 1234);
         assert_eq!(src.as_str(), "");
 
-        let mut src = "2H".chars();
+        let mut src = ParseState::new("2H");
         let res = dynamic().parse(&mut src)?;
         assert_eq!(res, 'H');
         assert_eq!(src.as_str(), "");
 
-        let mut src = "OIHFa".chars();
+        let mut src = ParseState::new("OIHFa");
         let res = recursion().parse(&mut src)?;
         assert_eq!(res, ());
         assert_eq!(src.as_str(), "");

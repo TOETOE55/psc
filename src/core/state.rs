@@ -1,4 +1,3 @@
-use crate::core::combinators::extra::FixState;
 use crate::core::traits::stream::Stream;
 use std::str::Chars;
 
@@ -68,4 +67,4 @@ impl<'a> Iterator for ParseState<'a> {
     }
 }
 
-impl<'a> Stream for FixState<'a> {}
+impl<'a> Stream for ParseState<'a> {}

@@ -1,8 +1,8 @@
 use crate::core::combinators::common::{Char, Strg};
 use crate::covert::IntoParser;
-use crate::{ParseMsg, ParseState, Parser, Pos, Stream};
+use crate::{ParseMsg, ParseState, Parser, Pos, Stream, Regex};
 use std::rc::Rc;
-use regex::Regex;
+
 
 #[derive(Clone, Debug)]
 pub struct FixState<'a> {
@@ -46,7 +46,8 @@ impl<'a> Iterator for FixState<'a> {
     }
 }
 
-impl<'a> Stream for ParseState<'a> {}
+
+impl<'a> Stream for FixState<'a> {}
 
 /// Fixed-point Combinator
 /// To deal with recursion syntax.(and left recursion)
@@ -154,11 +155,23 @@ impl<'a, 's> IntoParser<FixState<'s>> for &'a str {
     }
 }
 
-impl<'s> Parser<FixState<'s>> for Regex {
+impl<'s> Parser<FixState<'s>> for Regex<FixState<'s>> {
     type Target = &'s str;
 
     fn parse(&self, stream: &mut FixState<'s>) -> Result<Self::Target, ParseMsg> {
-        <Regex as Parser<ParseState<'s>>>::parse(self, &mut stream.delegate)
+        let src = stream.as_str();
+        match self.delegate().find(src) {
+            Some(range) if range.start() == 0 => {
+                for _ in 0..range.end() {
+                    stream.next();
+                }
+                Ok(range.as_str())
+            }
+            _ => Err(ParseMsg::Except(format!(
+                "expected {} at {:?}",
+                self.delegate().as_str(), stream.pos()
+            ))),
+        }
     }
 }
 
