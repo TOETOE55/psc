@@ -10,7 +10,9 @@ enum Expr {
     Pow(Box<Expr>, Box<Expr>),
 }
 
-use psc::{char, pure, reg, ParseFn, ParseState, Parser};
+use psc::core::traits::parser::ParserExt;
+use psc::covert::IntoParser;
+use psc::{char, fix, pure, reg, ParseFn, ParseState, Parser};
 use Expr::*;
 
 impl Expr {
@@ -60,117 +62,113 @@ impl Expr {
     }
 }
 
+fn lexem<'a, A>(
+    p: impl IntoParser<ParseState<'a>, Target = A>,
+) -> impl Parser<ParseState<'a>, Target = A> {
+    char(' ').many_().wrap() >> p << char(' ').many_()
+}
+
 fn real<'a>() -> impl Parser<ParseState<'a>, Target = f64> {
-    reg("[0-9]+(/.[0-9]+)?")
+    lexem(reg("\\d+(\\.\\d+)?"))
         .map(str::parse::<f64>)
         .map(Result::unwrap)
 }
 
 fn num<'a>() -> impl Parser<ParseState<'a>, Target = Expr> {
-    char('(').wrap() >> expr() << ')' | real().map(Val)
+    lexem('(').wrap() >> expr() << lexem(')') | real().map(Expr::val)
 }
 
 fn expr<'a>() -> impl Parser<ParseState<'a>, Target = Expr> {
-    ParseFn(|s: &mut ParseState<'a>| {
-        let e1 = mult().parse(s)?;
-        let e2 = expr_().parse(s)?;
-        match e2 {
-            None => Ok(e1),
-            Some(f) => Ok(f(e1)),
-        }
-    })
+    mult().map2(expr_(), |e1, e2| e2.unwrap_or(Box::new(|x| x))(e1))
 }
 
 fn expr_<'a>(
 ) -> impl Parser<ParseState<'a>, Target = Option<Box<dyn FnOnce(Expr) -> Expr + 'static>>> {
     ParseFn(|s: &mut ParseState<'a>| {
-        char('+').parse(s)?;
+        lexem('+').parse(s)?;
         let e1 = mult().parse(s)?;
         let e2 = expr_().parse(s)?;
-        Ok(Some(match e2 {
-            None => Box::new(move |e| Expr::plus(e, e1)) as Box<dyn FnOnce(Expr) -> Expr>,
-            Some(f) => Box::new(move |e| f(Expr::plus(e, e1))),
-        }))
+
+        Ok(Some(Box::new(move |e| match e2 {
+            None => Expr::plus(e, e1),
+            Some(f) => f(Expr::plus(e, e1)),
+        }) as Box<dyn FnOnce(Expr) -> Expr>))
     })
     .wrap()
         | ParseFn(|s: &mut ParseState<'a>| {
-            char('-').parse(s)?;
+            lexem(char('-')).parse(s)?;
             let e1 = mult().parse(s)?;
             let e2 = expr_().parse(s)?;
-            Ok(Some(match e2 {
-                None => Box::new(move |e| Expr::minu(e, e1)) as Box<dyn FnOnce(Expr) -> Expr>,
-                Some(f) => Box::new(move |e| f(Expr::minu(e, e1))),
-            }))
+            Ok(Some(Box::new(move |e| match e2 {
+                None => Expr::minu(e, e1),
+                Some(f) => f(Expr::minu(e, e1)),
+            }) as Box<dyn FnOnce(Expr) -> Expr>))
         })
         | pure(|| None)
 }
 
 fn mult<'a>() -> impl Parser<ParseState<'a>, Target = Expr> {
-    ParseFn(|s: &mut ParseState<'a>| {
-        let e1 = uexpr().parse(s)?;
-        let e2 = mult_().parse(s)?;
-        match e2 {
-            None => Ok(e1),
-            Some(f) => Ok(f(e1)),
-        }
-    })
+    uexpr().map2(mult_(), |e1, e2| e2.unwrap_or(Box::new(|x| x))(e1))
 }
 
 fn mult_<'a>(
 ) -> impl Parser<ParseState<'a>, Target = Option<Box<dyn FnOnce(Expr) -> Expr + 'static>>> {
     ParseFn(|s: &mut ParseState<'a>| {
-        char('*').parse(s)?;
+        lexem('*').parse(s)?;
         let e1 = uexpr().parse(s)?;
         let e2 = mult_().parse(s)?;
-        Ok(Some(match e2 {
-            None => Box::new(move |e| Expr::mult(e, e1)) as Box<dyn FnOnce(Expr) -> Expr>,
-            Some(f) => Box::new(move |e| f(Expr::plus(e, e1))),
-        }))
+        Ok(Some(
+            Box::new(|e| e2.unwrap_or(Box::new(|x| x))(Expr::mult(e, e1)))
+                as Box<dyn FnOnce(Expr) -> Expr>,
+        ))
     })
     .wrap()
         | ParseFn(|s: &mut ParseState<'a>| {
-            char('/').parse(s)?;
+            lexem('/').parse(s)?;
             let e1 = uexpr().parse(s)?;
             let e2 = mult_().parse(s)?;
-            Ok(Some(match e2 {
-                None => Box::new(move |e| Expr::divi(e, e1)) as Box<dyn FnOnce(Expr) -> Expr>,
-                Some(f) => Box::new(move |e| f(Expr::minu(e, e1))),
-            }))
+            Ok(Some(
+                Box::new(|e| e2.unwrap_or(Box::new(|x| x))(Expr::divi(e, e1)))
+                    as Box<dyn FnOnce(Expr) -> Expr>,
+            ))
         })
         | pure(|| None)
 }
 
 fn uexpr<'a>() -> impl Parser<ParseState<'a>, Target = Expr> {
-    ParseFn(|s: &mut ParseState<'a>| {
-        char('+').parse(s)?;
-        let e = uexpr().parse(s)?;
-        Ok(Expr::posi(e))
+    fix(|uexpr| {
+        Box::new(
+            lexem('+').wrap() >> uexpr.map(Expr::posi)
+                | lexem('-').wrap() >> uexpr.map(Expr::nega)
+                | pow(),
+        )
     })
-    .wrap()
-        | ParseFn(|s: &mut ParseState<'a>| {
-            char('-').parse(s)?;
-            let e = uexpr().parse(s)?;
-            Ok(Expr::nega(e))
-        })
-        | pow()
 }
 
 fn pow<'a>() -> impl Parser<ParseState<'a>, Target = Expr> {
-    ParseFn(move |stream: &mut ParseState<'a>| {
-        let e1 = num().parse(stream)?;
-        char('^').parse(stream)?;
-        let e2 = pow().parse(stream)?;
-        Ok(Expr::pow(e1, e2))
-    })
-    .wrap()
-        | num()
+    fix(|pow| Box::new(num().map2(lexem('^').wrap() >> pow, Expr::pow).wrap() | num()))
 }
 
 fn main() {
-    let mut src = ParseState::new("-1+2*3^4");
+    let mut src = ParseState::new("- (1 +2 *(3^   4/3)- ++ (+ - - 2.9)) ?");
     let res = expr().parse(&mut src).unwrap();
     println!("{}", res.eval());
     println!("{:?}", res);
-    assert!(res.eval() - 161.0 < 0.01);
-    assert_eq!(src.as_str(), "");
+    assert_eq!(src.as_str(), "?");
+
+    let mut src = ParseState::new("\"a\\b\"");
+    let res = tok_str().parse(&mut src);
+    println!("{:?}", res);
+
+    let mut src = ParseState::new("?x1-dfas1$__2s   sdf");
+    let res = tok_var().parse(&mut src);
+    println!("{:?}", res);
+}
+
+fn tok_str<'a>() -> impl Parser<ParseState<'a>, Target = &'a str> {
+    reg("\"([^\"]|\\.)*\"").map(|s: &str| &s[1..s.len() - 1])
+}
+
+fn tok_var<'a>() -> impl Parser<ParseState<'a>, Target = &'a str> {
+    reg("\\?[0-9a-zA-Z\\-_$]+")
 }

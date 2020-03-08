@@ -1,3 +1,4 @@
+#![feature(try_trait)]
 pub mod core;
 
 pub use crate::core::{

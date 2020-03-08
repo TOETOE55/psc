@@ -1,8 +1,9 @@
 use crate::core::combinators::{AndL, AndR, Or};
+use crate::core::traits::parser::ParserExt;
 use crate::covert::IntoParser;
 use crate::{ParseMsg, Parser, Stream};
 use std::marker::PhantomData;
-use std::ops::{BitOr, Shl, Shr};
+use std::ops::{BitOr, Shl, Shr, ShrAssign};
 
 /// Alg wrapper
 /// 1. `pa.wrap() >> pb ~ pa.and_r(pb)`

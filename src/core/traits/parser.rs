@@ -41,7 +41,37 @@ pub trait Parser<S: Stream> {
     /// assert_eq!(src.as_str(), "123");
     /// ```
     fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg>;
+}
 
+impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for &P {
+    type Target = P::Target;
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        (**self).parse(stream)
+    }
+}
+
+impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for &mut P {
+    type Target = P::Target;
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        (**self).parse(stream)
+    }
+}
+
+impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for Box<P> {
+    type Target = P::Target;
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        (**self).parse(stream)
+    }
+}
+
+impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for Rc<P> {
+    type Target = P::Target;
+    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
+        (**self).parse(stream)
+    }
+}
+
+pub trait ParserExt<S: Stream>: Parser<S> {
     /// Alternative combinator.
     /// The parser `p.or(q)` first applies `p`. If it succeeds, the value of `p` is returned.
     /// If `p` *fails without consuming any input*, parser `q` is tried.
@@ -401,30 +431,4 @@ pub trait Parser<S: Stream> {
     }
 }
 
-impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for &P {
-    type Target = P::Target;
-    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
-        (**self).parse(stream)
-    }
-}
-
-impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for &mut P {
-    type Target = P::Target;
-    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
-        (**self).parse(stream)
-    }
-}
-
-impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for Box<P> {
-    type Target = P::Target;
-    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
-        (**self).parse(stream)
-    }
-}
-
-impl<S: Stream, P: Parser<S> + ?Sized> Parser<S> for Rc<P> {
-    type Target = P::Target;
-    fn parse(&self, stream: &mut S) -> Result<Self::Target, ParseMsg> {
-        (**self).parse(stream)
-    }
-}
+impl<S: Stream, P: Parser<S>> ParserExt<S> for P {}
