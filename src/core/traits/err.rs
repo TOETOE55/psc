@@ -1,9 +1,8 @@
-use std::fmt::Debug;
-
-pub trait ParseError {
+pub trait ParseLogger {
     fn info(&mut self, msg: &str);
     fn warn(&mut self, msg: &str);
     fn err(&mut self, msg: &str);
+    fn clear(&mut self);
 }
 
 #[derive(Debug, Clone)]
@@ -18,7 +17,7 @@ pub struct ParseErr {
     stack: Vec<Msg>,
 }
 
-impl ParseError for ParseErr {
+impl ParseLogger for ParseErr {
     fn info(&mut self, msg: &str) {
         self.stack.push(Msg::Info(msg.to_string()));
     }
@@ -29,5 +28,9 @@ impl ParseError for ParseErr {
 
     fn err(&mut self, msg: &str) {
         self.stack.push(Msg::Err(msg.to_string()));
+    }
+
+    fn clear(&mut self) {
+        self.stack.clear();
     }
 }
