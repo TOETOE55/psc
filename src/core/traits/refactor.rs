@@ -1,6 +1,7 @@
 use crate::core::traits::err::{ParseErr, ParseLogger};
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::ops::{BitOr, Shl, Shr};
 
 pub trait Parser<S, E = ParseErr> {
     type Target;
@@ -15,9 +16,125 @@ pub enum Consumed<A> {
 
 pub type ParseResult<A> = Consumed<Option<A>>;
 
-pub trait ParserExt<S, E>: Parser<S, E> {}
+pub trait ParserExt<S, E>: Parser<S, E> {
+    fn map<B, F>(self, f: F) -> Map<Self, F>
+    where
+        Self: Sized,
+        F: Fn(Self::Target) -> B,
+    {
+        Map::new(self, f)
+    }
+
+    fn map2<U, B, F>(self, other: U, f: F) -> Map2<Self, U::Parser, F>
+    where
+        Self: Sized,
+        U: IntoParser<S, E>,
+        F: Fn(Self::Target, U::Target) -> B,
+    {
+        Map2::new(self, other.into_parser(), f)
+    }
+
+    fn and_then<U, F>(self, f: F) -> AndThen<Self, F>
+    where
+        Self: Sized,
+        U: IntoParser<S, E>,
+        F: Fn(Self::Target) -> U,
+    {
+        AndThen::new(self, f)
+    }
+
+    fn flatten(self) -> Flatten<Self>
+    where
+        Self: Sized,
+        Self::Target: IntoParser<S, E>,
+    {
+        Flatten::new(self)
+    }
+
+    fn attempt(self) -> Attempt<Self>
+    where
+        Self: Sized,
+    {
+        Attempt::new(self)
+    }
+
+    fn many(self) -> Many<Self>
+    where
+        Self: Sized,
+    {
+        Many::new(self)
+    }
+
+    fn many_(self) -> Many_<Self>
+    where
+        Self: Sized,
+    {
+        Many_::new(self)
+    }
+
+    fn some(self) -> Some<Self>
+    where
+        Self: Sized,
+    {
+        Some::new(self)
+    }
+
+    fn some_(self) -> Some_<Self>
+    where
+        Self: Sized,
+    {
+        Some_::new(self)
+    }
+
+    fn r#try(self) -> Try<Self>
+    where
+        Self: Sized,
+    {
+        Try::new(self)
+    }
+}
 
 impl<S, E, P: Parser<S, E>> ParserExt<S, E> for P {}
+
+impl<S, E, P: Parser<S, E> + ?Sized> Parser<S, E> for &P {
+    type Target = P::Target;
+
+    fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
+        (**self).parse(s, err)
+    }
+}
+
+impl<S, E, P: Parser<S, E> + ?Sized> Parser<S, E> for &mut P {
+    type Target = P::Target;
+
+    fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
+        (**self).parse(s, err)
+    }
+}
+
+impl<S, E, P: Parser<S, E> + ?Sized> Parser<S, E> for Box<P> {
+    type Target = P::Target;
+
+    fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
+        (**self).parse(s, err)
+    }
+}
+
+impl<S, E, P: Parser<S, E> + ?Sized> Parser<S, E> for std::rc::Rc<P> {
+    type Target = P::Target;
+
+    fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
+        (**self).parse(s, err)
+    }
+}
+
+impl<S, E, P: Parser<S, E> + ?Sized> Parser<S, E> for std::sync::Arc<P> {
+    type Target = P::Target;
+
+    fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
+        (**self).parse(s, err)
+    }
+}
 
 pub trait IntoParser<S, E> {
     type Target;
@@ -110,6 +227,10 @@ impl<A, S, E> Empty<S, E, A> {
     }
 }
 
+pub fn empty<S, E, A>() -> Empty<S, E, A> {
+    Empty::new()
+}
+
 impl<A, S, E> Default for Empty<S, E, A> {
     fn default() -> Self {
         Self::new()
@@ -147,6 +268,13 @@ impl<S, E, F> Pure<S, E, F> {
     }
 }
 
+pub fn pure<S, E, A, F>(x: F) -> Pure<S, E, F>
+where
+    F: Fn() -> A,
+{
+    Pure::new(x)
+}
+
 /**
 */
 impl<S, E, F: Clone> Clone for Pure<S, E, F> {
@@ -180,6 +308,10 @@ impl<S, E, A> Fail<S, E, A> {
             _marker: PhantomData,
         }
     }
+}
+
+pub fn fail<S, E, A>(msg: &str) -> Fail<S, E, A> {
+    Fail::new(msg)
 }
 
 impl<S, E: ParseLogger, A> Parser<S, E> for Fail<S, E, A> {
@@ -483,6 +615,10 @@ where
     }
 }
 
+pub fn select<'a, S, E, A>(ps: Vec<Box<dyn Parser<S, E, Target = A> + 'a>>) -> Select<'a, S, E, A> {
+    Select::new(ps)
+}
+
 /**
 */
 pub struct Join<'a, S, E, A> {
@@ -517,6 +653,10 @@ impl<'a, S, E, A> Parser<S, E> for Join<'a, S, E, A> {
             None => Consumed::Empty(Some(result)),
         }
     }
+}
+
+pub fn join<'a, S, E, A>(ps: Vec<Box<dyn Parser<S, E, Target = A> + 'a>>) -> Join<'a, S, E, A> {
+    Join::new(ps)
 }
 
 /**
@@ -684,10 +824,10 @@ impl<P> Some_<P> {
 }
 
 impl<S, E, P> Parser<S, E> for Some_<P>
-    where
-        S: Clone,
-        E: Clone,
-        P: Parser<S, E>,
+where
+    S: Clone,
+    E: Clone,
+    P: Parser<S, E>,
 {
     type Target = ();
 
@@ -695,7 +835,6 @@ impl<S, E, P> Parser<S, E> for Some_<P>
         let mut cons: fn(_) -> _ = match self.parser.parse(s, err)? {
             Consumed::Some(_) => Consumed::Some,
             Consumed::Empty(x) => Consumed::Empty,
-
         };
 
         let mut s0 = s.clone();
@@ -749,12 +888,12 @@ where
                 *s = s0;
                 *err = err0;
                 Consumed::Some(None)
-            },
+            }
             Consumed::Empty(None) => {
                 *s = s0;
                 *err = err0;
                 Consumed::Empty(None)
-            },
+            }
             Consumed::Some(x) => Consumed::Some(x.map(Some)),
             Consumed::Empty(x) => Consumed::Empty(x.map(Some)),
         }
@@ -782,8 +921,17 @@ impl<S, E: ParseLogger, P: Parser<S, E>> Parser<S, E> for Info<P> {
     type Target = P::Target;
 
     fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
-        err.info(&self.msg);
-        self.parser.parse(s, err)
+        match self.parser.parse(s, err) {
+            Consumed::Empty(None) => {
+                err.info(&self.msg);
+                Consumed::Empty(None)
+            }
+            Consumed::Some(None) => {
+                err.info(&self.msg);
+                Consumed::Empty(None)
+            }
+            ok => ok,
+        }
     }
 }
 
@@ -806,8 +954,17 @@ impl<S, E: ParseLogger, P: Parser<S, E>> Parser<S, E> for Warn<P> {
     type Target = P::Target;
 
     fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
-        err.warn(&self.msg);
-        self.parser.parse(s, err)
+        match self.parser.parse(s, err) {
+            Consumed::Empty(None) => {
+                err.warn(&self.msg);
+                Consumed::Empty(None)
+            }
+            Consumed::Some(None) => {
+                err.warn(&self.msg);
+                Consumed::Empty(None)
+            }
+            ok => ok,
+        }
     }
 }
 
@@ -830,7 +987,95 @@ impl<S, E: ParseLogger, P: Parser<S, E>> Parser<S, E> for Err<P> {
     type Target = P::Target;
 
     fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
-        err.err(&self.msg);
-        self.parser.parse(s, err)
+        match self.parser.parse(s, err) {
+            Consumed::Empty(None) => {
+                err.err(&self.msg);
+                Consumed::Empty(None)
+            }
+            Consumed::Some(None) => {
+                err.err(&self.msg);
+                Consumed::Empty(None)
+            }
+            ok => ok,
+        }
+    }
+}
+
+/**
+ops
+*/
+#[derive(Copy, Clone, Debug)]
+pub struct ParseFn<F>(pub F);
+
+impl<S, E, A, F> Parser<S, E> for ParseFn<F>
+where
+    F: Fn(&mut S, &mut E) -> ParseResult<A>,
+{
+    type Target = A;
+
+    fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
+        (self.0)(s, err)
+    }
+}
+
+pub struct ParserWrapper<S, E, P> {
+    inner: P,
+    _marker: PhantomData<fn(&mut S, &mut E) -> P>,
+}
+
+impl<S, E, P> ParserWrapper<S, E, P> {
+    pub fn new(inner: P) -> Self {
+        Self {
+            inner,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn unwrap(self) -> P {
+        self.inner
+    }
+}
+
+impl<S, E, P: Parser<S, E>> Parser<S, E> for ParserWrapper<S, E, P> {
+    type Target = P::Target;
+
+    fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
+        self.inner.parse(s, err)
+    }
+}
+
+impl<S, E, P, Q> BitOr<Q> for ParserWrapper<S, E, P>
+where
+    P: Parser<S, E>,
+    Q: Parser<S, E, Target = P::Target>,
+{
+    type Output = Or<P, Q>;
+
+    fn bitor(self, rhs: Q) -> Self::Output {
+        Or::new(self.inner, rhs)
+    }
+}
+
+impl<S, E, P, Q> Shl<Q> for ParserWrapper<S, E, P>
+where
+    P: Parser<S, E>,
+    Q: Parser<S, E>,
+{
+    type Output = AndL<P, Q>;
+
+    fn shl(self, rhs: Q) -> Self::Output {
+        AndL::new(self.inner, rhs)
+    }
+}
+
+impl<S, E, P, Q> Shr<Q> for ParserWrapper<S, E, P>
+where
+    P: Parser<S, E>,
+    Q: Parser<S, E>,
+{
+    type Output = AndR<P, Q>;
+
+    fn shr(self, rhs: Q) -> Self::Output {
+        AndR::new(self.inner, rhs)
     }
 }
