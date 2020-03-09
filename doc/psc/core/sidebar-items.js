@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["combinators",""],["err",""],["state",""],["traits",""]]});
+initSidebarItems({"mod":[["combinator",""],["err",""],["state",""],["traits",""]]});
