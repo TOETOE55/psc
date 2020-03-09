@@ -12,6 +12,7 @@ enum Expr {
     Pow(Box<Expr>, Box<Expr>),
 }
 
+use crate::core::traits::parser::ParserExt;
 use Expr::*;
 
 impl Expr {

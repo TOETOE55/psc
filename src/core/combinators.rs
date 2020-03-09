@@ -83,6 +83,7 @@ impl<'a, S: Stream, A> Fix<'a, S, A> {
     /// ```
     /// use psc::core::combinators::Fix;
     /// use psc::{fix, Parser, char};
+    /// use psc::core::traits::parser::ParserExt;
     /// let f = Fix::coerce(|it| Box::new(
     ///            char('1').and_r(it).or(char('0'))));
     /// let parser = fix(Box::new(f));
@@ -117,6 +118,7 @@ impl<'a, S: Stream, A> Parser<S> for Fix<'a, S, A> {
 /// # Example
 /// ```
 /// use psc::{fix, Parser, char};
+/// use psc::core::traits::parser::ParserExt;
 /// let parser = fix(|it| Box::new(
 ///         char('1').and_r(it).or(char('0'))));
 /// // parser = '1' parser | '0'

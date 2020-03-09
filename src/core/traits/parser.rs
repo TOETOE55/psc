@@ -21,6 +21,7 @@ pub trait Parser<S: Stream> {
     /// Basic usage:
     /// ```
     /// use psc::{satisfy, char, Parser};
+    /// use psc::core::traits::parser::ParserExt;
     ///
     /// let parser = char('+').or(char('-')).tries();
     /// // ('+'|'-')?
@@ -83,6 +84,7 @@ pub trait ParserExt<S: Stream>: Parser<S> {
     /// # Example
     /// ```
     /// use psc::{char, Parser};
+    /// use psc::core::traits::parser::ParserExt;
     ///
     /// let parser = char('+').or(char('-').or(char('*'))).or(char('/'));
     /// // '+' | ('-' | '*') | '/'
@@ -125,6 +127,7 @@ pub trait ParserExt<S: Stream>: Parser<S> {
     /// # Example
     /// ```
     /// use psc::{char, Parser};
+    /// use psc::core::traits::parser::ParserExt;
     ///
     /// let parser = char('a').and_r(char('b').and_r(char('c'))).and_r(char('d'));
     /// // a(bc)d
@@ -158,6 +161,7 @@ pub trait ParserExt<S: Stream>: Parser<S> {
     /// # Example
     /// ```
     /// use psc::{char, Parser};
+    /// use psc::core::traits::parser::ParserExt;
     ///
     /// let parser = char('a').and_r(char('b').and_l(char('c'))).and_l(char('d'));
     /// // a(bc)d
@@ -189,6 +193,7 @@ pub trait ParserExt<S: Stream>: Parser<S> {
     /// 2. **composition**: `p.map(f).map(g) ~ p.map(|x| g(f(x))`
     /// ```
     /// use psc::{satisfy, Parser};
+    /// use psc::core::traits::parser::ParserExt;
     /// let parser = satisfy(|ch: &char| ch.is_numeric())
     ///     .map(|c: char| c.to_digit(10))
     ///     .map(Option::unwrap);
@@ -212,6 +217,7 @@ pub trait ParserExt<S: Stream>: Parser<S> {
     /// # Example
     /// ```
     /// use psc::{char, satisfy, Parser};
+    /// use psc::core::traits::parser::ParserExt;
     ///
     /// let pa = char('1').map(|c: char| c.to_digit(10)).map(Option::unwrap);
     /// let pb = satisfy(|ch: &char| ch.is_numeric()).map(|c: char| c.to_digit(10)).map(Option::unwrap);
@@ -265,6 +271,7 @@ pub trait ParserExt<S: Stream>: Parser<S> {
     /// # Example
     /// ```
     /// use psc::{satisfy, Parser, char};
+    /// use psc::core::traits::parser::ParserExt;
     ///
     /// let parser = satisfy(|_| true)
     ///     .and_then(|upper: char| if upper.is_uppercase() {
@@ -293,6 +300,7 @@ pub trait ParserExt<S: Stream>: Parser<S> {
     /// # Example
     /// ```
     /// use psc::{char, Parser, ParseState};
+    /// use psc::core::traits::parser::ParserExt;
     ///
     /// let parser = char('2').cons(char('3').cons(char('3').many()));
     /// // 23(3*)
@@ -314,6 +322,7 @@ pub trait ParserExt<S: Stream>: Parser<S> {
     /// # Example
     /// ```
     /// use psc::{char, Parser, ParseState};
+    /// use psc::core::traits::parser::ParserExt;
     ///
     /// let parser = char('3').many().snoc(char('2'));
     /// // (3*)2
@@ -333,6 +342,7 @@ pub trait ParserExt<S: Stream>: Parser<S> {
     /// # Example
     /// ```
     /// use psc::{char, Parser, ParseState};
+    /// use psc::core::traits::parser::ParserExt;
     ///
     /// let parser = char('3').many().chain(char('2').some());
     /// // (3*)(2+)

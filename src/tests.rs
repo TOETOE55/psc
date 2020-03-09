@@ -1,3 +1,4 @@
+use crate::core::traits::parser::ParserExt;
 use crate::{fix, pure, reg, satisfy, ParseFn, ParseMsg, ParseState, Parser, Stream};
 
 mod calculator;

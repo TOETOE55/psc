@@ -73,6 +73,7 @@ where
 /// Parse function wrapper
 /// ```
 /// use psc::{Stream, ParseMsg, satisfy, ParseFn, Parser, pure};
+/// use psc::core::traits::parser::ParserExt;
 /// fn parse_fn<S: Stream<Item = char> + Clone>(stream: &mut S) -> Result<(), ParseMsg> {
 ///        let parser =
 ///         (satisfy(|ch: &char| ch.is_uppercase()).wrap() >> ParseFn(parse_fn))

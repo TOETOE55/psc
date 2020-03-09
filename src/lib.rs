@@ -10,7 +10,7 @@ pub use crate::core::{
     },
     err::ParseMsg,
     state::{ParseState, Pos},
-    traits::{covert, parser::Parser, stream::Stream},
+    traits::{covert, parser::Parser, refactor, stream::Stream},
 };
 
 #[cfg(test)]

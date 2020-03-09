@@ -4,8 +4,43 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{BitOr, Shl, Shr};
 
+/// An interface for dealing with Parser Combinator.
 pub trait Parser<S, E = ParseErr> {
+    /// The type of the target after parsed.
     type Target;
+    /**
+    Parse the stream and returning the result with the rest of stream.
+    Returns Err(ParseMsg) when the parsing failed or at the end of the stream.
+
+    # Example
+    Basic usage:
+    ```
+    use psc::core::traits::err::ParseErr;
+    use psc::refactor::{char, Parser, ParserExt};
+    use psc::ParseState;
+
+    let parser = char('+').or(char('-')).option();
+    // ('+'|'-')?
+
+    let mut src = ParseState::new("+123");
+    let mut logger = ParseErr::default();
+    let res = parser.parse(&mut src, &mut logger).value().unwrap();
+    assert_eq!(res, Some('+'));
+    assert_eq!(src.as_str(), "123");
+
+    let mut src = ParseState::new("-123");
+    let mut logger = ParseErr::default();
+    let res = parser.parse(&mut src, &mut logger).value().unwrap();
+    assert_eq!(res, Some('-'));
+    assert_eq!(src.as_str(), "123");
+
+    let mut src = ParseState::new("123");
+    let mut logger = ParseErr::default();
+    let res = parser.parse(&mut src, &mut logger).value().unwrap();
+    assert_eq!(res, None);
+    assert_eq!(src.as_str(), "123");
+    ```
+    */
     fn parse(&self, s: &mut S, err: &mut E) -> ParseResult<Self::Target>;
 }
 
@@ -18,6 +53,28 @@ pub enum Consumed<A> {
 pub type ParseResult<A> = Consumed<Option<A>>;
 
 pub trait ParserExt<S, E>: Parser<S, E> {
+    /**
+    # Map Combinator.
+    The parser `p.map(f)` creates an parser which calls the closure `f` on the parse result of p.
+
+    Functor law satisfied:
+    1. **identity**: `p.map(|x| x) ~ p`
+    2. **composition**: `p.map(f).map(g) ~ p.map(|x| g(f(x))`
+    ## Example
+    ```
+    use psc::core::traits::err::ParseErr;
+    use psc::refactor::{digit, Parser, ParserExt};
+    use psc::ParseState;
+
+    let parser = digit().map(|c: char| c.to_digit(10)).map(Option::unwrap);
+
+    let mut src = ParseState::new("1abc");
+    let mut logger = ParseErr::default();
+    let res = parser.parse(&mut src, &mut logger).value().unwrap();
+    assert_eq!(res, 1);
+    assert_eq!(src.as_str(), "abc");
+    ```
+    */
     fn map<B, F>(self, f: F) -> Map<Self, F>
     where
         Self: Sized,
@@ -26,6 +83,26 @@ pub trait ParserExt<S, E>: Parser<S, E> {
         Map::new(self, f)
     }
 
+    /**
+    # Map2 Combinator
+    It's just like `.map()`, but it map two parsers.
+    ## Example
+    ```
+    use psc::core::traits::err::ParseErr;
+    use psc::refactor::{char, digit, Parser, ParserExt};
+    use psc::ParseState;
+
+    let pa = char('1').map(|c: char| c.to_digit(10)).map(Option::unwrap);
+    let pb = digit().map(|c: char| c.to_digit(10)).map(Option::unwrap);
+    let parser = pa.map2(pb, |a, b| a + b);
+    // 1[0-9]
+
+    let mut src = ParseState::new("123");
+    let mut logger = ParseErr::default();
+    let res = parser.parse(&mut src, &mut logger).value().unwrap();
+    assert_eq!(res, 3);
+    ```
+    */
     fn map2<U, B, F>(self, other: U, f: F) -> Map2<Self, U::Parser, F>
     where
         Self: Sized,
@@ -35,6 +112,36 @@ pub trait ParserExt<S, E>: Parser<S, E> {
         Map2::new(self, other.into_parser(), f)
     }
 
+    /**
+    # Context Sensitive Sequence Combinator.
+    It's used to construct context sensitive parser.
+
+    Monad law satisfied:
+    1. **left identity**: pure(|| x).and_then(f) ~ f(x)
+    2. **right identity**: p.and_then(|x| pure(|| x)) ~ p
+    3. **associative**: p.and_then(f).and_then(g) ~ p.and_then(|x| f(x).and_then(g))
+
+    ## Example
+    ```
+    use psc::core::traits::err::ParseErr;
+    use psc::refactor::{char, digit, satisfy, Parser, ParserExt};
+    use psc::ParseState;
+    let parser = satisfy(|_| true).and_then(|upper: char| {
+        if upper.is_uppercase() {
+            char('1')
+        } else {
+            char('2')
+        }
+    });
+    // [A-Z]1 | [a-z]2
+
+    let res = parser.parse(&mut ParseState::new("H1"), &mut ParseErr::default()).value().unwrap();
+    assert_eq!(res, '1');
+
+    let res = parser.parse(&mut ParseState::new("h2"), &mut ParseErr::default()).value().unwrap();
+    assert_eq!(res, '2');
+    ```
+    */
     fn and_then<U, F>(self, f: F) -> AndThen<Self, F>
     where
         Self: Sized,
@@ -44,6 +151,119 @@ pub trait ParserExt<S, E>: Parser<S, E> {
         AndThen::new(self, f)
     }
 
+    /**
+    # Alternative combinator.
+    The parser `p.or(q)` first applies `p`. If it succeeds, the value of `p` is returned.
+    If `p` *fails without consuming any input*, parser `q` is tried.
+    The parser is called *predictive* since `q` is only tried when parser `p` didn't consume any input.
+
+    Monoid law satisfied:
+    1. **Associative**: `p.or(q.or(r)) ~ p.or(q).or(r)`
+    2. **identity**: `p.or(empty()) ~ p ~ empty().or(p)`
+
+    ## Example
+    ```
+    use psc::core::traits::err::ParseErr;
+    use psc::refactor::{char, IntoParser, Parser, ParserExt};
+    use psc::ParseState;
+
+    let parser = char('+').or(char('-').or(char('*'))).or(char('/'));
+    // '+' | ('-' | '*') | '/'
+
+    let mut src = ParseState::new("+123");
+    let mut logger = ParseErr::default();
+    let res = parser.parse(&mut src, &mut logger).value().unwrap();
+    assert_eq!(res, '+');
+    assert_eq!(src.as_str(), "123");
+
+    let mut src = ParseState::new("-123");
+    let mut logger = ParseErr::default();
+    let res = parser.parse(&mut src, &mut logger).value().unwrap();
+    assert_eq!(res, '-');
+    assert_eq!(src.as_str(), "123");
+
+    let mut src = ParseState::new("*123");
+    let mut logger = ParseErr::default();
+    let res = parser.parse(&mut src, &mut logger).value().unwrap();
+    assert_eq!(res, '*');
+    assert_eq!(src.as_str(), "123");
+
+    let mut src = ParseState::new("/123");
+    let res = parser.parse(&mut src, &mut logger).value().unwrap();
+
+    assert_eq!(res, '/');
+    assert_eq!(src.as_str(), "123");
+    ```
+    */
+    fn or<U>(self, other: U) -> Or<Self, U::Parser>
+    where
+        Self: Sized,
+        U: IntoParser<S, E, Target = Self::Target>,
+    {
+        Or::new(self, other.into_parser())
+    }
+
+    /**
+    # Sequence Combinator
+    The parser `p.and_r(q)` applies `p` and `q` sequent and returns the result of `q`.
+    If `p` fails, `q` won't be called.
+
+    Associative law satisfied:
+    `p.and_r(q.and_r(r)) ~ p.and_r(q).and_r(r)`
+
+    ## Example
+    ```
+    use psc::core::traits::err::ParseErr;
+    use psc::refactor::{char, IntoParser, Parser, ParserExt};
+    use psc::ParseState;
+    let parser = char('a').and_r(char('b').and_r(char('c'))).and_r(char('d'));
+
+    let mut src = ParseState::new("abcde");
+    let mut logger = ParseErr::default();
+    let res = parser.parse(&mut src, &mut logger).value().unwrap();
+    assert_eq!(res, 'd');
+    assert_eq!(src.as_str(), "e");
+    ```
+    */
+    fn and_r<U>(self, other: U) -> AndR<Self, U::Parser>
+    where
+        Self: Sized,
+        U: IntoParser<S, E>,
+    {
+        AndR::new(self, other.into_parser())
+    }
+
+    /**
+    # Sequence Combinator
+    The parser `p.and_r(q)` applies `p` and `q` sequent and returns the result of `p`.
+    If `p` fails, `q` won't be called.
+
+    Associative law satisfied:
+    `p.and_l(q.and_l(r)) ~ p.and_l(q).and_l(r)`
+
+    ## Example
+    ```
+    use psc::core::traits::err::ParseErr;
+    use psc::refactor::{char, IntoParser, Parser, ParserExt};
+    use psc::ParseState;
+    let parser = char('a').and_l(char('b').and_l(char('c'))).and_l(char('d'));
+
+    let mut src = ParseState::new("abcde");
+    let mut logger = ParseErr::default();
+    let res = parser.parse(&mut src, &mut logger).value().unwrap();
+    assert_eq!(res, 'a');
+    assert_eq!(src.as_str(), "e");
+    ```
+    */
+    fn and_l<U>(self, other: U) -> AndL<Self, U::Parser>
+    where
+        Self: Sized,
+        U: IntoParser<S, E>,
+    {
+        AndL::new(self, other.into_parser())
+    }
+
+    /// It can be defined as `pp.flatten() ~ pp.and_then(|x| x)`
     fn flatten(self) -> Flatten<Self>
     where
         Self: Sized,
@@ -52,6 +272,32 @@ pub trait ParserExt<S, E>: Parser<S, E> {
         Flatten::new(self)
     }
 
+    /**
+    # Attempt Combinator
+    The parser p.attempt() behaves like parser p,
+    except that it pretends that it hasn't consumed any input when an error occurs.
+    ## Example
+    ```
+    use psc::core::traits::err::ParseErr;
+    use psc::refactor::{char, strg, IntoParser, Parser, ParserExt};
+    use psc::ParseState;
+
+    let parser = char('p').and_r("pq").attempt().or("pq");
+
+    let mut src = ParseState::new("pq");
+    let mut logger = ParseErr::default();
+    let res = parser.parse(&mut src, &mut logger).value();
+    assert_eq!(res, Some("pq"));
+    assert_eq!(src.as_str(), "");
+
+    let parser = char('p').and_r("pq").or("pq");
+
+    let mut src = ParseState::new("pq");
+    let mut logger = ParseErr::default();
+    let res = parser.parse(&mut src, &mut logger).value();
+    assert_eq!(res, None);
+    ```
+    */
     fn attempt(self) -> Attempt<Self>
     where
         Self: Sized,
@@ -59,6 +305,25 @@ pub trait ParserExt<S, E>: Parser<S, E> {
         Attempt::new(self)
     }
 
+    /**
+    # Kleene Closure Combinator
+    `p.many()` applies the parser `p` zero or more times.
+    Returns a vec of the returned values of `p`.
+
+    ## Example
+    ```
+    use psc::core::traits::err::ParseErr;
+    use psc::refactor::{char, strg, IntoParser, Parser, ParserExt};
+    use psc::ParseState;
+
+    let parser = char('0').or('1').many();
+    let mut src = ParseState::new("0110");
+    let mut logger = ParseErr::default();
+    let res = parser.parse(&mut src, &mut logger).value().unwrap();
+    assert_eq!(res, vec!['0', '1', '1', '0']);
+    assert_eq!(src.as_str(), "");
+    ```
+    */
     fn many(self) -> Many<Self>
     where
         Self: Sized,
@@ -66,6 +331,10 @@ pub trait ParserExt<S, E>: Parser<S, E> {
         Many::new(self)
     }
 
+    /**
+    Kleene Closure Combinator
+    `p.many_()` applies the parser `p` zero or more times, ignore its result.
+    */
     fn many_(self) -> Many_<Self>
     where
         Self: Sized,
@@ -73,6 +342,10 @@ pub trait ParserExt<S, E>: Parser<S, E> {
         Many_::new(self)
     }
 
+    /**
+    `p.some()` applies the parser `p` one or more times.
+    Returns a vec of the returned values of `p`.
+    */
     fn some(self) -> Some<Self>
     where
         Self: Sized,
@@ -80,6 +353,7 @@ pub trait ParserExt<S, E>: Parser<S, E> {
         Some::new(self)
     }
 
+    /// `p.some_()` applies the parser `p` one or more times, ignore its result.
     fn some_(self) -> Some_<Self>
     where
         Self: Sized,
@@ -87,13 +361,15 @@ pub trait ParserExt<S, E>: Parser<S, E> {
         Some_::new(self)
     }
 
-    fn r#try(self) -> Try<Self>
+    /// `p.option()` applies the parser `p` zero or one times.
+    fn option(self) -> Optional<Self>
     where
         Self: Sized,
     {
-        Try::new(self)
+        Optional::new(self)
     }
 
+    /// append some info when its fail
     fn info(self, msg: &str) -> Info<Self>
     where
         Self: Sized,
@@ -113,13 +389,6 @@ pub trait ParserExt<S, E>: Parser<S, E> {
         Self: Sized,
     {
         Err::new(msg, self)
-    }
-
-    fn wrap(self) -> ParserWrapper<S, E, Self>
-    where
-        Self: Sized,
-    {
-        ParserWrapper::new(self)
     }
 }
 
@@ -187,6 +456,14 @@ impl<A> Consumed<A> {
             Consumed::Empty(x) => x,
         }
     }
+
+    pub fn consumed(self) -> Self {
+        Consumed::Some(self.value())
+    }
+
+    pub fn cancel(self) -> Self {
+        Consumed::Empty(self.value())
+    }
 }
 
 impl<A> Consumed<Option<A>> {
@@ -205,7 +482,8 @@ impl<A> Consumed<Option<A>> {
         F: FnOnce(A) -> Consumed<Option<B>>,
     {
         match self {
-            Consumed::Some(Some(x)) | Consumed::Empty(Some(x)) => f(x),
+            Consumed::Some(Some(x)) => f(x).consumed(),
+            Consumed::Empty(Some(x)) => f(x),
             Consumed::Some(None) => Consumed::Some(None),
             Consumed::Empty(None) => Consumed::Empty(None),
         }
@@ -241,8 +519,7 @@ impl<A: std::ops::Try> std::ops::Try for Consumed<A> {
     }
 }
 
-/**
-*/
+
 #[derive(Debug)]
 pub struct Empty<S, E, A> {
     _marker: PhantomData<fn(&mut S, &mut E) -> Consumed<Option<A>>>,
@@ -304,8 +581,7 @@ where
     Pure::new(x)
 }
 
-/**
-*/
+
 impl<S, E, F: Clone> Clone for Pure<S, E, F> {
     fn clone(&self) -> Self {
         Self::new(self.inner.clone())
@@ -322,39 +598,6 @@ impl<S, E, A, F: Fn() -> A> Parser<S, E> for Pure<S, E, F> {
     }
 }
 
-/**
-*/
-#[derive(Debug, Clone)]
-pub struct Fail<S, E, A> {
-    msg: String,
-    _marker: PhantomData<fn(&mut S, &mut E) -> A>,
-}
-
-impl<S, E, A> Fail<S, E, A> {
-    pub fn new(msg: &str) -> Self {
-        Self {
-            msg: msg.to_string(),
-            _marker: PhantomData,
-        }
-    }
-}
-
-pub fn fail<S, E, A>(msg: &str) -> Fail<S, E, A> {
-    Fail::new(msg)
-}
-
-impl<S, E: ParserLogger, A> Parser<S, E> for Fail<S, E, A> {
-    type Target = A;
-
-    fn parse(&self, _: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
-        err.clear();
-        err.err(&self.msg);
-        Consumed::Empty(None)
-    }
-}
-
-/**
-*/
 #[derive(Clone, Copy)]
 pub struct Map<P, F> {
     parser: P,
@@ -379,8 +622,7 @@ where
     }
 }
 
-/**
-*/
+
 #[derive(Clone, Copy)]
 pub struct Map2<P1, P2, F> {
     p1: P1,
@@ -409,8 +651,7 @@ where
     }
 }
 
-/**
-*/
+
 #[derive(Clone, Copy)]
 pub struct AndThen<P, F> {
     parser: P,
@@ -438,8 +679,7 @@ where
     }
 }
 
-/**
-*/
+
 #[derive(Copy, Clone, Debug)]
 pub struct Or<PA, PB> {
     pa: PA,
@@ -489,8 +729,7 @@ where
     }
 }
 
-/**
-*/
+
 pub struct Attempt<P> {
     parser: P,
 }
@@ -512,8 +751,7 @@ impl<S, E, P: Parser<S, E>> Parser<S, E> for Attempt<P> {
     }
 }
 
-/**
-*/
+
 #[derive(Clone, Debug)]
 pub struct AndR<PA, PB> {
     pa: PA,
@@ -534,13 +772,12 @@ where
     type Target = PB::Target;
 
     fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
-        self.pa.parse(s, err)?;
-        self.pb.parse(s, err)
+        self.pa.parse(s, err).flat_map(|_| self.pb.parse(s, err))
+
     }
 }
 
-/**
-*/
+
 #[derive(Clone, Debug)]
 pub struct AndL<PA, PB> {
     pa: PA,
@@ -561,13 +798,11 @@ where
     type Target = PA::Target;
 
     fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
-        let a = self.pa.parse(s, err)?.value();
-        self.pb.parse(s, err).map(|_| a)
+        self.pa.parse(s, err).flat_map(|a|self.pb.parse(s, err).map(move |_| a))
     }
 }
 
-/**
-*/
+
 pub struct Flatten<PP> {
     pp: PP,
 }
@@ -586,12 +821,11 @@ where
     type Target = <<PP as Parser<S, E>>::Target as IntoParser<S, E>>::Target;
 
     fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
-        self.pp.parse(s, err)?.value().into_parser().parse(s, err)
+        self.pp.parse(s, err).flat_map(|p| p.into_parser().parse(s, err))
     }
 }
 
-/**
-*/
+
 pub struct Select<'a, S, E, A> {
     ps: Vec<Box<dyn Parser<S, E, Target = A> + 'a>>,
 }
@@ -648,8 +882,7 @@ pub fn select<'a, S, E, A>(ps: Vec<Box<dyn Parser<S, E, Target = A> + 'a>>) -> S
     Select::new(ps)
 }
 
-/**
-*/
+
 pub struct Join<'a, S, E, A> {
     ps: Vec<Box<dyn Parser<S, E, Target = A> + 'a>>,
 }
@@ -665,22 +898,19 @@ impl<'a, S, E, A> Parser<S, E> for Join<'a, S, E, A> {
 
     fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
         let mut result = vec![];
-        for p in self.ps.iter().take(self.ps.len() - 1) {
-            result.push(p.parse(s, err)?.value());
-        }
-        match self.ps.last() {
-            Some(p) => match p.parse(s, err)? {
+        let mut cons: fn(_) -> _ = Consumed::Empty;
+        for p in self.ps.iter() {
+            match p.parse(s, err)? {
                 Consumed::Some(x) => {
                     result.push(x);
-                    Consumed::Some(Some(result))
+                    cons = Consumed::Some;
                 }
                 Consumed::Empty(x) => {
                     result.push(x);
-                    Consumed::Empty(Some(result))
                 }
-            },
-            None => Consumed::Empty(Some(result)),
+            }
         }
+        cons(Some(result))
     }
 }
 
@@ -714,7 +944,7 @@ where
         let mut s0 = s.clone();
         let mut err0 = err.clone();
         let mut cons: fn(_) -> _ = Consumed::Empty;
-        return loop {
+        loop {
             match self.parser.parse(s, err) {
                 Consumed::Some(Some(x)) => {
                     result.push(x);
@@ -726,7 +956,6 @@ where
                     result.push(x);
                     s0 = s.clone();
                     err0 = err.clone();
-                    cons = Consumed::Empty;
                 }
                 _ => {
                     *s = s0;
@@ -734,7 +963,7 @@ where
                     break cons(Some(result));
                 }
             }
-        };
+        }
     }
 }
 
@@ -761,17 +990,16 @@ where
         let mut s0 = s.clone();
         let mut err0 = err.clone();
         let mut cons: fn(_) -> _ = Consumed::Empty;
-        return loop {
+        loop {
             match self.parser.parse(s, err) {
-                Consumed::Some(Some(x)) => {
+                Consumed::Some(Some(_)) => {
                     s0 = s.clone();
                     err0 = err.clone();
                     cons = Consumed::Some;
                 }
-                Consumed::Empty(Some(x)) => {
+                Consumed::Empty(Some(_)) => {
                     s0 = s.clone();
                     err0 = err.clone();
-                    cons = Consumed::Empty;
                 }
                 _ => {
                     *s = s0;
@@ -779,7 +1007,7 @@ where
                     break cons(Some(()));
                 }
             }
-        };
+        }
     }
 }
 
@@ -817,7 +1045,7 @@ where
 
         let mut s0 = s.clone();
         let mut err0 = err.clone();
-        return loop {
+        loop {
             match self.parser.parse(s, err) {
                 Consumed::Some(Some(x)) => {
                     result.push(x);
@@ -829,7 +1057,6 @@ where
                     result.push(x);
                     s0 = s.clone();
                     err0 = err.clone();
-                    cons = Consumed::Empty;
                 }
                 _ => {
                     *s = s0;
@@ -837,7 +1064,7 @@ where
                     break cons(Some(result));
                 }
             }
-        };
+        }
     }
 }
 
@@ -863,22 +1090,21 @@ where
     fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
         let mut cons: fn(_) -> _ = match self.parser.parse(s, err)? {
             Consumed::Some(_) => Consumed::Some,
-            Consumed::Empty(x) => Consumed::Empty,
+            Consumed::Empty(_) => Consumed::Empty,
         };
 
         let mut s0 = s.clone();
         let mut err0 = err.clone();
-        return loop {
+        loop {
             match self.parser.parse(s, err) {
-                Consumed::Some(Some(x)) => {
+                Consumed::Some(Some(_)) => {
                     s0 = s.clone();
                     err0 = err.clone();
                     cons = Consumed::Some;
                 }
-                Consumed::Empty(Some(x)) => {
+                Consumed::Empty(Some(_)) => {
                     s0 = s.clone();
                     err0 = err.clone();
-                    cons = Consumed::Empty;
                 }
                 _ => {
                     *s = s0;
@@ -886,22 +1112,22 @@ where
                     break cons(Some(()));
                 }
             }
-        };
+        }
     }
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Try<P> {
+pub struct Optional<P> {
     parser: P,
 }
 
-impl<P> Try<P> {
+impl<P> Optional<P> {
     pub fn new(parser: P) -> Self {
         Self { parser }
     }
 }
 
-impl<S, E, P> Parser<S, E> for Try<P>
+impl<S, E, P> Parser<S, E> for Optional<P>
 where
     S: Clone,
     E: Clone,
@@ -916,12 +1142,12 @@ where
             Consumed::Some(None) => {
                 *s = s0;
                 *err = err0;
-                Consumed::Some(None)
+                Consumed::Some(Some(None))
             }
             Consumed::Empty(None) => {
                 *s = s0;
                 *err = err0;
-                Consumed::Empty(None)
+                Consumed::Empty(Some(None))
             }
             Consumed::Some(x) => Consumed::Some(x.map(Some)),
             Consumed::Empty(x) => Consumed::Empty(x.map(Some)),
@@ -929,8 +1155,7 @@ where
     }
 }
 
-/**
-*/
+
 #[derive(Debug, Clone)]
 pub struct Info<P> {
     msg: String,
@@ -1065,6 +1290,22 @@ impl<S, E, P> ParserWrapper<S, E, P> {
     }
 }
 
+/**
+# Parser Operator
+## Example
+```
+use psc::refactor::wrap;
+
+let parser = (wrap('p') >> "pq") | "pq"; // char('p').and_r("pq").or("pq")
+```
+*/
+pub fn wrap<S, E, P>(p: P) -> ParserWrapper<S, E, P::Parser>
+where
+    P: IntoParser<S, E>,
+{
+    ParserWrapper::new(p.into_parser())
+}
+
 impl<S, E, P: Parser<S, E>> Parser<S, E> for ParserWrapper<S, E, P> {
     type Target = P::Target;
 
@@ -1075,42 +1316,41 @@ impl<S, E, P: Parser<S, E>> Parser<S, E> for ParserWrapper<S, E, P> {
 
 impl<S, E, P, Q> BitOr<Q> for ParserWrapper<S, E, P>
 where
-    P: Parser<S, E>,
+    P: IntoParser<S, E>,
     Q: IntoParser<S, E, Target = P::Target>,
 {
-    type Output = Or<P, Q>;
+    type Output =  ParserWrapper<S, E, Or<P::Parser, Q::Parser>>;
 
     fn bitor(self, rhs: Q) -> Self::Output {
-        Or::new(self.inner, rhs)
+        ParserWrapper::new(Or::new(self.inner.into_parser(), rhs.into_parser()))
     }
 }
 
 impl<S, E, P, Q> Shl<Q> for ParserWrapper<S, E, P>
 where
-    P: Parser<S, E>,
+    P: IntoParser<S, E>,
     Q: IntoParser<S, E>,
 {
-    type Output = AndL<P, Q>;
+    type Output =  ParserWrapper<S, E, AndL<P::Parser, Q::Parser>>;
 
     fn shl(self, rhs: Q) -> Self::Output {
-        AndL::new(self.inner, rhs)
+        ParserWrapper::new(AndL::new(self.inner.into_parser(), rhs.into_parser()))
     }
 }
 
 impl<S, E, P, Q> Shr<Q> for ParserWrapper<S, E, P>
 where
-    P: Parser<S, E>,
+    P: IntoParser<S, E>,
     Q: IntoParser<S, E>,
 {
-    type Output = AndR<P, Q>;
+    type Output = ParserWrapper<S, E, AndR<P::Parser, Q::Parser>>;
 
     fn shr(self, rhs: Q) -> Self::Output {
-        AndR::new(self.inner, rhs)
+        ParserWrapper::new(AndR::new(self.inner.into_parser(), rhs.into_parser()))
     }
 }
 
-/**
-*/
+
 #[derive(Debug)]
 pub struct Satisfy<E, F> {
     satisfy: F,
@@ -1130,12 +1370,12 @@ impl<E, F: Clone> Clone for Satisfy<E, F> {
     fn clone(&self) -> Self {
         Self {
             satisfy: self.satisfy.clone(),
-            _marker: PhantomData
+            _marker: PhantomData,
         }
     }
 }
 
-impl<E, F: Copy> Copy for Satisfy<E, F> { }
+impl<E, F: Copy> Copy for Satisfy<E, F> {}
 
 impl<'a, E, F> Parser<ParseState<'a>, E> for Satisfy<E, F>
 where
@@ -1177,28 +1417,34 @@ pub fn letter<E: ParserLogger>() -> Info<Satisfy<E, impl Fn(&char) -> bool + Cop
 }
 
 pub fn digit<E: ParserLogger>() -> Info<Satisfy<E, impl Fn(&char) -> bool + Copy>> {
-    satisfy(|c| c.is_digit(10)).info("expecting alphabetic")
+    satisfy(|c| c.is_digit(10)).info("expecting digit")
 }
 
 #[derive(Debug)]
 pub struct Char<E> {
     ch: char,
-    _marker: PhantomData<fn(&mut E)>
+    _marker: PhantomData<fn(&mut E)>,
 }
 
 impl<E> Char<E> {
     pub fn new(ch: char) -> Self {
-        Self { ch, _marker: PhantomData }
+        Self {
+            ch,
+            _marker: PhantomData,
+        }
     }
 }
 
 impl<E> Clone for Char<E> {
     fn clone(&self) -> Self {
-        Self { ch: self.ch, _marker: PhantomData }
+        Self {
+            ch: self.ch,
+            _marker: PhantomData,
+        }
     }
 }
 
-impl<E> Copy for Char<E> { }
+impl<E> Copy for Char<E> {}
 
 impl<'a, E: ParserLogger> Parser<ParseState<'a>, E> for Char<E> {
     type Target = char;
@@ -1210,7 +1456,10 @@ impl<'a, E: ParserLogger> Parser<ParseState<'a>, E> for Char<E> {
                     Consumed::Some(Some(ch))
                 } else {
                     err.clear();
-                    err.err(&format!("err at {:?}, unexpect {} expecting {}", s.pos, ch, self.ch));
+                    err.err(&format!(
+                        "err at {:?}, unexpect '{}' expecting '{}'",
+                        s.pos, ch, self.ch
+                    ));
                     Consumed::Empty(None)
                 }
             }
@@ -1223,7 +1472,7 @@ impl<'a, E: ParserLogger> Parser<ParseState<'a>, E> for Char<E> {
     }
 }
 
-fn char<E: ParserLogger>(ch: char) -> Char<E> {
+pub fn char<E: ParserLogger>(ch: char) -> Char<E> {
     Char::new(ch)
 }
 
@@ -1237,14 +1486,17 @@ impl<E> Strg<E> {
     pub fn new(temp: &str) -> Self {
         Self {
             temp: temp.to_string(),
-            _marker: PhantomData
+            _marker: PhantomData,
         }
     }
 }
 
 impl<E> Clone for Strg<E> {
     fn clone(&self) -> Self {
-        Self { temp: self.temp.to_owned(), _marker: PhantomData }
+        Self {
+            temp: self.temp.to_owned(),
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -1258,7 +1510,10 @@ impl<'a, E: ParserLogger> Parser<ParseState<'a>, E> for Strg<E> {
             Consumed::Some(Some(src.split_at(self.temp.len()).0))
         } else {
             err.clear();
-            err.err(&format!("error at {:?}, expecting \"{}\"", s.pos, self.temp));
+            err.err(&format!(
+                "error at {:?}, expecting \"{}\"",
+                s.pos, self.temp
+            ));
             Consumed::Empty(None)
         }
     }
@@ -1267,3 +1522,64 @@ impl<'a, E: ParserLogger> Parser<ParseState<'a>, E> for Strg<E> {
 pub fn strg<E: ParserLogger>(temp: &str) -> Strg<E> {
     Strg::new(temp)
 }
+
+pub struct EOF<E> {
+    _marker: PhantomData<fn(&mut E)>,
+}
+
+
+impl<E> EOF<E> {
+    pub fn new() -> Self {
+        Self { _marker: PhantomData }
+    }
+}
+
+impl<E> Clone for EOF<E> {
+    fn clone(&self) -> Self {
+        Self::new()
+    }
+}
+
+impl<E> Copy for EOF<E> { }
+
+impl<E> Default for EOF<E> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'a, E: ParserLogger> Parser<ParseState<'a>, E> for EOF<E> {
+    type Target = ();
+
+    fn parse(&self, s: &mut ParseState<'a>, err: &mut E) -> Consumed<Option<Self::Target>> {
+        match s.next() {
+            None => Consumed::Empty(Some(())),
+            Some(x) => {
+                err.clear();
+                err.err(&format!("error at {:?}, expecting eof, unexpected '{}'", s.pos, x));
+                Consumed::Empty(None)
+            },
+        }
+    }
+}
+
+
+impl<'a> IntoParser<ParseState<'a>, ParseErr> for char {
+    type Target = char;
+    type Parser = Char<ParseErr>;
+
+    fn into_parser(self) -> Self::Parser {
+        Char::new(self)
+    }
+}
+
+impl<'a> IntoParser<ParseState<'a>, ParseErr> for &str {
+    type Target = &'a str;
+    type Parser = Strg<ParseErr>;
+
+    fn into_parser(self) -> Self::Parser {
+        Strg::new(self)
+    }
+}
+
+mod tests;
