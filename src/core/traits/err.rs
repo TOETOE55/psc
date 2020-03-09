@@ -1,4 +1,4 @@
-pub trait ParseLogger {
+pub trait ParserLogger {
     fn info(&mut self, msg: &str);
     fn warn(&mut self, msg: &str);
     fn err(&mut self, msg: &str);
@@ -17,7 +17,7 @@ pub struct ParseErr {
     stack: Vec<Msg>,
 }
 
-impl ParseLogger for ParseErr {
+impl ParserLogger for ParseErr {
     fn info(&mut self, msg: &str) {
         self.stack.push(Msg::Info(msg.to_string()));
     }

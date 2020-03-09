@@ -1,4 +1,5 @@
-use crate::core::traits::err::{ParseErr, ParseLogger};
+use crate::core::traits::err::{ParseErr, ParserLogger};
+use crate::{ParseState, Stream};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{BitOr, Shl, Shr};
@@ -91,6 +92,34 @@ pub trait ParserExt<S, E>: Parser<S, E> {
         Self: Sized,
     {
         Try::new(self)
+    }
+
+    fn info(self, msg: &str) -> Info<Self>
+    where
+        Self: Sized,
+    {
+        Info::new(msg, self)
+    }
+
+    fn warn(self, msg: &str) -> Warn<Self>
+    where
+        Self: Sized,
+    {
+        Warn::new(msg, self)
+    }
+
+    fn err(self, msg: &str) -> Err<Self>
+    where
+        Self: Sized,
+    {
+        Err::new(msg, self)
+    }
+
+    fn wrap(self) -> ParserWrapper<S, E, Self>
+    where
+        Self: Sized,
+    {
+        ParserWrapper::new(self)
     }
 }
 
@@ -216,7 +245,7 @@ impl<A: std::ops::Try> std::ops::Try for Consumed<A> {
 */
 #[derive(Debug)]
 pub struct Empty<S, E, A> {
-    _marker: PhantomData<fn(&mut S, &mut E) -> A>,
+    _marker: PhantomData<fn(&mut S, &mut E) -> Consumed<Option<A>>>,
 }
 
 impl<A, S, E> Empty<S, E, A> {
@@ -256,7 +285,7 @@ impl<A, S, E> Parser<S, E> for Empty<S, E, A> {
 #[derive(Debug)]
 pub struct Pure<S, E, F> {
     inner: F,
-    _marker: PhantomData<fn(&mut S, &mut E) -> F>,
+    _marker: PhantomData<fn(&mut S, &mut E)>,
 }
 
 impl<S, E, F> Pure<S, E, F> {
@@ -314,7 +343,7 @@ pub fn fail<S, E, A>(msg: &str) -> Fail<S, E, A> {
     Fail::new(msg)
 }
 
-impl<S, E: ParseLogger, A> Parser<S, E> for Fail<S, E, A> {
+impl<S, E: ParserLogger, A> Parser<S, E> for Fail<S, E, A> {
     type Target = A;
 
     fn parse(&self, _: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
@@ -917,7 +946,7 @@ impl<P> Info<P> {
     }
 }
 
-impl<S, E: ParseLogger, P: Parser<S, E>> Parser<S, E> for Info<P> {
+impl<S, E: ParserLogger, P: Parser<S, E>> Parser<S, E> for Info<P> {
     type Target = P::Target;
 
     fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
@@ -950,7 +979,7 @@ impl<P> Warn<P> {
     }
 }
 
-impl<S, E: ParseLogger, P: Parser<S, E>> Parser<S, E> for Warn<P> {
+impl<S, E: ParserLogger, P: Parser<S, E>> Parser<S, E> for Warn<P> {
     type Target = P::Target;
 
     fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
@@ -983,7 +1012,7 @@ impl<P> Err<P> {
     }
 }
 
-impl<S, E: ParseLogger, P: Parser<S, E>> Parser<S, E> for Err<P> {
+impl<S, E: ParserLogger, P: Parser<S, E>> Parser<S, E> for Err<P> {
     type Target = P::Target;
 
     fn parse(&self, s: &mut S, err: &mut E) -> Consumed<Option<Self::Target>> {
@@ -1020,7 +1049,7 @@ where
 
 pub struct ParserWrapper<S, E, P> {
     inner: P,
-    _marker: PhantomData<fn(&mut S, &mut E) -> P>,
+    _marker: PhantomData<fn(&mut S, &mut E)>,
 }
 
 impl<S, E, P> ParserWrapper<S, E, P> {
@@ -1047,7 +1076,7 @@ impl<S, E, P: Parser<S, E>> Parser<S, E> for ParserWrapper<S, E, P> {
 impl<S, E, P, Q> BitOr<Q> for ParserWrapper<S, E, P>
 where
     P: Parser<S, E>,
-    Q: Parser<S, E, Target = P::Target>,
+    Q: IntoParser<S, E, Target = P::Target>,
 {
     type Output = Or<P, Q>;
 
@@ -1059,7 +1088,7 @@ where
 impl<S, E, P, Q> Shl<Q> for ParserWrapper<S, E, P>
 where
     P: Parser<S, E>,
-    Q: Parser<S, E>,
+    Q: IntoParser<S, E>,
 {
     type Output = AndL<P, Q>;
 
@@ -1071,11 +1100,170 @@ where
 impl<S, E, P, Q> Shr<Q> for ParserWrapper<S, E, P>
 where
     P: Parser<S, E>,
-    Q: Parser<S, E>,
+    Q: IntoParser<S, E>,
 {
     type Output = AndR<P, Q>;
 
     fn shr(self, rhs: Q) -> Self::Output {
         AndR::new(self.inner, rhs)
     }
+}
+
+/**
+*/
+#[derive(Debug)]
+pub struct Satisfy<E, F> {
+    satisfy: F,
+    _marker: PhantomData<fn(&mut E)>,
+}
+
+impl<E, F> Satisfy<E, F> {
+    pub fn new(satisfy: F) -> Self {
+        Self {
+            satisfy,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<E, F: Clone> Clone for Satisfy<E, F> {
+    fn clone(&self) -> Self {
+        Self {
+            satisfy: self.satisfy.clone(),
+            _marker: PhantomData
+        }
+    }
+}
+
+impl<E, F: Copy> Copy for Satisfy<E, F> { }
+
+impl<'a, E, F> Parser<ParseState<'a>, E> for Satisfy<E, F>
+where
+    E: ParserLogger,
+    F: Fn(&char) -> bool,
+{
+    type Target = <ParseState<'a> as Iterator>::Item;
+
+    fn parse(&self, s: &mut ParseState<'a>, err: &mut E) -> Consumed<Option<Self::Target>> {
+        match s.next() {
+            Some(ch) => {
+                if (self.satisfy)(&ch) {
+                    Consumed::Some(Some(ch))
+                } else {
+                    err.clear();
+                    err.err(&format!("err at {:?}", s.pos));
+                    Consumed::Empty(None)
+                }
+            }
+            None => {
+                err.clear();
+                err.err(&format!("err at {:?} input exhausted", s.pos));
+                Consumed::Empty(None)
+            }
+        }
+    }
+}
+
+pub fn satisfy<E, F>(satisfy: F) -> Satisfy<E, F>
+where
+    E: ParserLogger,
+    F: Fn(&char) -> bool,
+{
+    Satisfy::new(satisfy)
+}
+
+pub fn letter<E: ParserLogger>() -> Info<Satisfy<E, impl Fn(&char) -> bool + Copy>> {
+    satisfy(|c| c.is_alphabetic()).info("expecting alphabetic")
+}
+
+pub fn digit<E: ParserLogger>() -> Info<Satisfy<E, impl Fn(&char) -> bool + Copy>> {
+    satisfy(|c| c.is_digit(10)).info("expecting alphabetic")
+}
+
+#[derive(Debug)]
+pub struct Char<E> {
+    ch: char,
+    _marker: PhantomData<fn(&mut E)>
+}
+
+impl<E> Char<E> {
+    pub fn new(ch: char) -> Self {
+        Self { ch, _marker: PhantomData }
+    }
+}
+
+impl<E> Clone for Char<E> {
+    fn clone(&self) -> Self {
+        Self { ch: self.ch, _marker: PhantomData }
+    }
+}
+
+impl<E> Copy for Char<E> { }
+
+impl<'a, E: ParserLogger> Parser<ParseState<'a>, E> for Char<E> {
+    type Target = char;
+
+    fn parse(&self, s: &mut ParseState<'a>, err: &mut E) -> Consumed<Option<Self::Target>> {
+        match s.next() {
+            Some(ch) => {
+                if self.ch == ch {
+                    Consumed::Some(Some(ch))
+                } else {
+                    err.clear();
+                    err.err(&format!("err at {:?}, unexpect {} expecting {}", s.pos, ch, self.ch));
+                    Consumed::Empty(None)
+                }
+            }
+            None => {
+                err.clear();
+                err.err(&format!("err at {:?} input exhausted", s.pos));
+                Consumed::Empty(None)
+            }
+        }
+    }
+}
+
+fn char<E: ParserLogger>(ch: char) -> Char<E> {
+    Char::new(ch)
+}
+
+#[derive(Debug)]
+pub struct Strg<E> {
+    temp: String,
+    _marker: PhantomData<fn(&mut E) -> &str>,
+}
+
+impl<E> Strg<E> {
+    pub fn new(temp: &str) -> Self {
+        Self {
+            temp: temp.to_string(),
+            _marker: PhantomData
+        }
+    }
+}
+
+impl<E> Clone for Strg<E> {
+    fn clone(&self) -> Self {
+        Self { temp: self.temp.to_owned(), _marker: PhantomData }
+    }
+}
+
+impl<'a, E: ParserLogger> Parser<ParseState<'a>, E> for Strg<E> {
+    type Target = &'a str;
+
+    fn parse(&self, s: &mut ParseState<'a>, err: &mut E) -> Consumed<Option<Self::Target>> {
+        let src = s.as_str();
+        if let Some(0) = src.find(&self.temp) {
+            s.take(self.temp.len()).for_each(|_| {});
+            Consumed::Some(Some(src.split_at(self.temp.len()).0))
+        } else {
+            err.clear();
+            err.err(&format!("error at {:?}, expecting \"{}\"", s.pos, self.temp));
+            Consumed::Empty(None)
+        }
+    }
+}
+
+pub fn strg<E: ParserLogger>(temp: &str) -> Strg<E> {
+    Strg::new(temp)
 }
