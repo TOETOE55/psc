@@ -4,7 +4,7 @@ pub mod core;
 pub use crate::core::{
     combinator::{
         adaptor::{self, empty, join, pure, select},
-        basic::{self, char, digit, eof, letter, satisfy, strg},
+        basic::{self, char, digit, eof, letter, satisfy, strg, regex},
         ops::{self, wrap, ParseFn, ParserWrapper},
     },
     traits::{

@@ -1,8 +1,8 @@
 use crate::adaptor::Info;
-use crate::core::traits::covert::IntoParser;
-use crate::core::traits::err::ParserLogger;
 use crate::{Consumed, ParseErr, ParseState, Parser, ParserExt};
 use std::marker::PhantomData;
+use crate::err::ParserLogger;
+use crate::covert::IntoParser;
 
 #[derive(Debug)]
 pub struct Satisfy<E, F> {
@@ -240,4 +240,63 @@ impl<'a> IntoParser<ParseState<'a>> for &str {
     fn into_parser(self) -> Self::Parser {
         Strg::new(self)
     }
+}
+
+pub struct Regex<E> {
+    delegate: regex::Regex,
+    _marker: PhantomData<fn(&mut E)>
+}
+
+
+impl<S> Regex<S> {
+    pub fn new(re: &str) -> Result<Self, regex::Error> {
+        regex::Regex::new(re).map(|delegate| Self {
+            delegate,
+            _marker: PhantomData,
+        })
+    }
+
+    pub fn delegate(&self) -> &regex::Regex {
+        &self.delegate
+    }
+
+    pub fn unwrap(self) -> regex::Regex {
+        self.delegate
+    }
+}
+
+impl<E> From<regex::Regex> for Regex<E> {
+    fn from(re: regex::Regex) -> Self {
+        Self {
+            delegate: re,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<'a, E: ParserLogger> Parser<ParseState<'a>, E> for Regex<E> {
+    type Target = &'a str;
+
+    fn parse(&self, s: &mut ParseState<'a>, err: &mut E) -> Consumed<Option<Self::Target>> {
+        let re = &self.delegate;
+        let src = s.as_str();
+        match re.find(src) {
+            Some(m) if m.start() == 0 => {
+                s.take(m.end()).for_each(|_| {});
+                Consumed::Some(Some(m.as_str()))
+            },
+            _ => {
+                err.clear();
+                err.err(&format!(
+                    "error at {:?}, expecting \"{}\"",
+                    s.pos, self.delegate.as_str()
+                ));
+                Consumed::Empty(None)
+            }
+        }
+    }
+}
+
+pub fn regex<E: ParserLogger>(reg: &str) -> Regex<E> {
+    Regex::new(reg).unwrap()
 }
