@@ -1,8 +1,8 @@
 use crate::adaptor::Info;
-use crate::{Consumed, ParseErr, ParseState, Parser, ParserExt};
-use std::marker::PhantomData;
-use crate::err::ParserLogger;
 use crate::covert::IntoParser;
+use crate::err::ParserLogger;
+use crate::{Consumed, ParseErr, ParseState, Parser};
+use std::marker::PhantomData;
 
 #[derive(Debug)]
 pub struct Satisfy<E, F> {
@@ -63,14 +63,6 @@ where
     F: Fn(&char) -> bool,
 {
     Satisfy::new(satisfy)
-}
-
-pub fn letter<E: ParserLogger>() -> Info<Satisfy<E, impl Fn(&char) -> bool + Copy>> {
-    satisfy(|c| c.is_alphabetic()).info("expecting alphabetic")
-}
-
-pub fn digit<E: ParserLogger>() -> Info<Satisfy<E, impl Fn(&char) -> bool + Copy>> {
-    satisfy(|c| c.is_digit(10)).info("expecting digit")
 }
 
 #[derive(Debug)]
@@ -244,9 +236,8 @@ impl<'a> IntoParser<ParseState<'a>> for &str {
 
 pub struct Regex<E> {
     delegate: regex::Regex,
-    _marker: PhantomData<fn(&mut E)>
+    _marker: PhantomData<fn(&mut E)>,
 }
-
 
 impl<S> Regex<S> {
     pub fn new(re: &str) -> Result<Self, regex::Error> {
@@ -284,12 +275,13 @@ impl<'a, E: ParserLogger> Parser<ParseState<'a>, E> for Regex<E> {
             Some(m) if m.start() == 0 => {
                 s.take(m.end()).for_each(|_| {});
                 Consumed::Some(Some(m.as_str()))
-            },
+            }
             _ => {
                 err.clear();
                 err.err(&format!(
                     "error at {:?}, expecting \"{}\"",
-                    s.pos, self.delegate.as_str()
+                    s.pos,
+                    self.delegate.as_str()
                 ));
                 Consumed::Empty(None)
             }
@@ -297,6 +289,6 @@ impl<'a, E: ParserLogger> Parser<ParseState<'a>, E> for Regex<E> {
     }
 }
 
-pub fn regex<E: ParserLogger>(reg: &str) -> Regex<E> {
+pub fn reg<E: ParserLogger>(reg: &str) -> Regex<E> {
     Regex::new(reg).unwrap()
 }
