@@ -10,7 +10,7 @@ use std::str::Chars;
 #[derive(Clone)]
 pub struct Satisfy<S, F> {
     satisfy: F,
-    _s: PhantomData<S>,
+    _s: PhantomData<fn(&mut S)>,
 }
 
 impl<S, F> Satisfy<S, F> {
@@ -46,7 +46,7 @@ where
 #[derive(Clone)]
 pub struct Char<S> {
     pub(crate) ch: char,
-    _s: PhantomData<S>,
+    _s: PhantomData<fn(&mut S)>,
 }
 
 impl<S> Char<S> {
@@ -114,7 +114,7 @@ pub fn char<S>(ch: char) -> Char<S> {
 #[derive(Clone)]
 pub struct Strg<'a, S> {
     pub(crate) s: &'a str,
-    _s: PhantomData<S>,
+    _s: PhantomData<fn(&mut S)>,
 }
 
 impl<'a, S> Strg<'a, S> {
@@ -192,7 +192,7 @@ pub fn strg<S>(s: &str) -> Strg<S> {
 
 pub struct Regex<S> {
     delegate: regex::Regex,
-    _s: PhantomData<S>,
+    _s: PhantomData<fn(&mut S)>,
 }
 
 impl<S> Regex<S> {

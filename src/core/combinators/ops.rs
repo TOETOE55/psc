@@ -8,7 +8,7 @@ use std::ops::{BitOr, Shl, Shr};
 /// 1. `pa.wrap() >> pb ~ pa.and_r(pb)`
 /// 2. `pa.wrap() << pb ~ pa.and_l(pb)`
 /// 3. `pa.wrap() | pb ~ pa.or(pb)`
-pub struct ParserWrapper<S, P>(P, PhantomData<S>);
+pub struct ParserWrapper<S, P>(P, PhantomData<fn(&mut S)>);
 
 impl<S, P> ParserWrapper<S, P> {
     pub fn new(parser: P) -> Self {

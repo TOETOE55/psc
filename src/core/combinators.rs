@@ -12,7 +12,7 @@ use std::rc::Rc;
 #[derive(Clone)]
 pub struct Pure<S, F> {
     x: F,
-    _s: PhantomData<S>,
+    _s: PhantomData<fn(&mut S)>,
 }
 
 impl<S, F> Pure<S, F> {
@@ -38,7 +38,7 @@ pub fn pure<S, T, F: Fn() -> T>(x: F) -> Pure<S, F> {
 pub struct Failure<S, T> {
     msg: ParseMsg,
     _p: PhantomData<T>,
-    _s: PhantomData<S>,
+    _s: PhantomData<fn(&mut S)>,
 }
 
 impl<S, T> Failure<S, T> {
