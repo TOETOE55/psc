@@ -13,25 +13,17 @@ pub trait Parser<S> {
     /// # Example
     /// Basic usage:
     /// ```
-    /// use psc::{satisfy, char, Parser};
+    /// use psc::{satisfy, char, Parser, ParserExt, ParseState, ParseLogger};
     ///
-    /// let parser = char('+').or(char('-')).tries();
+    /// let parser = char('+').or(char('-')).option();
     /// // ('+'|'-')?
     ///
-    /// let mut src = "+123".chars();
-    /// let res = parser.parse(&mut src).unwrap();
+    /// let mut src = ParseState::new("+123");
+    /// let mut logger = ParseLogger::default();
+    /// let res = parser.parse(&mut src, &mut logger).unwrap();
     /// assert_eq!(res, Some('+'));
     /// assert_eq!(src.as_str(), "123");
     ///
-    /// let mut src = "-123".chars();
-    /// let res = parser.parse(&mut src).unwrap();
-    /// assert_eq!(res, Some('-'));
-    /// assert_eq!(src.as_str(), "123");
-    ///
-    /// let mut src = "123".chars();
-    /// let res = parser.parse(&mut src).unwrap();
-    /// assert_eq!(res, None);
-    /// assert_eq!(src.as_str(), "123");
     /// ```
     fn parse(&self, stream: &mut S, logger: &mut ParseLogger) -> Option<Self::Target>;
 }

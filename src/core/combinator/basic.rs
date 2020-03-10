@@ -127,14 +127,6 @@ pub fn strg(s: &str) -> Strg {
 }
 
 /// regex
-/// ```
-/// use psc::{Parser, reg};
-/// let re = reg("(0+)(1*)");
-/// let mut src = "0000111112".chars();
-/// let res = re.parse(&mut src).unwrap();
-/// assert_eq!(res, "000011111");
-/// ```
-
 #[derive(Clone, Debug)]
 pub struct Regex {
     delegate: regex::Regex,

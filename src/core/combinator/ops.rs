@@ -91,18 +91,10 @@ pub fn wrap<S, P: IntoParser<S>>(p: P) -> ParserWrapper<S, P::Parser> {
 }
 
 /// Parse function wrapper
-/// ```
-/// use psc::{Stream, ParseMsg, satisfy, ParseFn, Parser, pure};
-/// fn parse_fn<S: Stream<Item = char> + Clone>(stream: &mut S) -> Result<(), ParseMsg> {
-///        let parser =
-///         (satisfy(|ch: &char| ch.is_uppercase()).wrap() >> ParseFn(parse_fn))
-///        | satisfy(|ch: &char| ch.is_lowercase()).wrap() >> pure(|| {});
-///        parser.parse(stream)
-///    }
-/// ```
+#[derive(Copy, Clone, Debug)]
 pub struct ParseFn<F>(pub F);
 
-impl<S: Stream, A, F> Parser<S> for ParseFn<F>
+impl<S, A, F> Parser<S> for ParseFn<F>
 where
     F: for<'a> Fn(&'a mut S, &mut ParseLogger) -> Option<A>,
 {

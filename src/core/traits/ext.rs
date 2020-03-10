@@ -13,28 +13,32 @@ pub trait ParserExt<S>: Parser<S> {
     /// 2. **identity**: `p.or(failure(e)) ~ p ~ failure(e).or(p)`
     /// # Example
     /// ```
-    /// use psc::{char, Parser};
+    /// use psc::{char, Parser, ParserExt, ParseState, ParseLogger};
     ///
     /// let parser = char('+').or(char('-').or(char('*'))).or(char('/'));
     /// // '+' | ('-' | '*') | '/'
     ///
-    /// let mut src = "+123".chars();
-    /// let res = parser.parse(&mut src).unwrap();
+    /// let mut src = ParseState::new("+123");
+    /// let mut logger = ParseLogger::default();
+    /// let res = parser.parse(&mut src, &mut logger).unwrap();
     /// assert_eq!(res, '+');
     /// assert_eq!(src.as_str(), "123");
     ///
-    /// let mut src = "-123".chars();
-    /// let res = parser.parse(&mut src).unwrap();
+    /// let mut src = ParseState::new("-123");
+    /// let mut logger = ParseLogger::default();
+    /// let res = parser.parse(&mut src, &mut logger).unwrap();
     /// assert_eq!(res, '-');
     /// assert_eq!(src.as_str(), "123");
     ///
-    /// let mut src = "*123".chars();
-    /// let res = parser.parse(&mut src).unwrap();
+    /// let mut src = ParseState::new("*123");
+    /// let mut logger = ParseLogger::default();
+    /// let res = parser.parse(&mut src, &mut logger).unwrap();
     /// assert_eq!(res, '*');
     /// assert_eq!(src.as_str(), "123");
     ///
-    /// let mut src = "/123".chars();
-    /// let res = parser.parse(&mut src).unwrap();
+    /// let mut src = ParseState::new("/123");
+    /// let mut logger = ParseLogger::default();
+    /// let res = parser.parse(&mut src, &mut logger).unwrap();
     /// assert_eq!(res, '/');
     /// assert_eq!(src.as_str(), "123");
     /// ```
@@ -55,21 +59,17 @@ pub trait ParserExt<S>: Parser<S> {
     ///
     /// # Example
     /// ```
-    /// use psc::{char, Parser};
+    /// use psc::{char, ParserExt, ParseState, Parser, ParseLogger};
     ///
     /// let parser = char('a').and_r(char('b').and_r(char('c'))).and_r(char('d'));
     /// // a(bc)d
     ///
-    /// let mut src = "abcde".chars();
-    /// let res = parser.parse(&mut src).unwrap();
+    /// let mut src = ParseState::new("abcde");
+    /// let mut logger = ParseLogger::default();
+    /// let res = parser.parse(&mut src, &mut logger).unwrap();
     /// assert_eq!(res, 'd');
     /// assert_eq!(src.as_str(), "e");
     ///
-    /// let res = parser.parse(&mut "ab".chars()).ok();
-    /// assert_eq!(res, None);
-    ///
-    /// let res = parser.parse(&mut "acde".chars()).ok();
-    /// assert_eq!(res, None);
     /// ```
     fn and_r<U>(self, other: U) -> AndR<Self, U::Parser>
     where
@@ -88,21 +88,17 @@ pub trait ParserExt<S>: Parser<S> {
     ///
     /// # Example
     /// ```
-    /// use psc::{char, Parser};
+    /// use psc::{char, Parser, ParserExt, ParseLogger, ParseState};
     ///
     /// let parser = char('a').and_r(char('b').and_l(char('c'))).and_l(char('d'));
     /// // a(bc)d
     ///
-    /// let mut src = "abcde".chars();
-    /// let res = parser.parse(&mut src).unwrap();
+    /// let mut src = ParseState::new("abcde");
+    /// let mut logger = ParseLogger::default();
+    /// let res = parser.parse(&mut src, &mut logger).unwrap();
     /// assert_eq!(res, 'b');
     /// assert_eq!(src.as_str(), "e");
     ///
-    /// let res = parser.parse(&mut "ab".chars()).ok();
-    /// assert_eq!(res, None);
-    ///
-    /// let res = parser.parse(&mut "acde".chars()).ok();
-    /// assert_eq!(res, None);
     /// ```
     fn and_l<U>(self, other: U) -> AndL<Self, U::Parser>
     where
@@ -119,13 +115,14 @@ pub trait ParserExt<S>: Parser<S> {
     /// 1. **identity**: `p.map(|x| x) ~ p`
     /// 2. **composition**: `p.map(f).map(g) ~ p.map(|x| g(f(x))`
     /// ```
-    /// use psc::{satisfy, Parser};
+    /// use psc::{satisfy, Parser, ParserExt, ParseState, ParseLogger};
     /// let parser = satisfy(|ch: &char| ch.is_numeric())
     ///     .map(|c: char| c.to_digit(10))
     ///     .map(Option::unwrap);
     ///
-    /// let mut src = "1abc".chars();
-    /// let res = parser.parse(&mut src).unwrap();
+    /// let mut src = ParseState::new("1abc");
+    /// let mut logger = ParseLogger::default();
+    /// let res = parser.parse(&mut src, &mut logger).unwrap();
     /// assert_eq!(res, 1);
     /// assert_eq!(src.as_str(), "abc");
     /// ```
@@ -142,14 +139,14 @@ pub trait ParserExt<S>: Parser<S> {
     ///
     /// # Example
     /// ```
-    /// use psc::{char, satisfy, Parser};
+    /// use psc::{char, satisfy, Parser, ParserExt, ParseState, ParseLogger};
     ///
     /// let pa = char('1').map(|c: char| c.to_digit(10)).map(Option::unwrap);
     /// let pb = satisfy(|ch: &char| ch.is_numeric()).map(|c: char| c.to_digit(10)).map(Option::unwrap);
     /// let parser = pa.map2(pb, |a, b| a+b);
     /// // 1[0-9]
     ///
-    /// let res = parser.parse(&mut "123".chars()).unwrap();
+    /// let res = parser.parse(&mut ParseState::new("123"), &mut ParseLogger::default()).unwrap();
     /// assert_eq!(res, 3);
     /// ```
     fn map2<U, B, F>(self, other: U, f: F) -> Map2<Self, U::Parser, F>
@@ -171,7 +168,7 @@ pub trait ParserExt<S>: Parser<S> {
     ///
     /// # Example
     /// ```
-    /// use psc::{satisfy, Parser, char};
+    /// use psc::{satisfy, Parser, char, ParserExt, ParseState, ParseLogger};
     ///
     /// let parser = satisfy(|_| true)
     ///     .and_then(|upper: char| if upper.is_uppercase() {
@@ -181,10 +178,10 @@ pub trait ParserExt<S>: Parser<S> {
     ///     });
     /// // [A-Z]1 | [a-z]2
     ///
-    /// let res = parser.parse(&mut "H1".chars()).unwrap();
+    /// let res = parser.parse(&mut ParseState::new("H1"), &mut ParseLogger::default()).unwrap();
     /// assert_eq!(res, '1');
     ///
-    /// let res = parser.parse(&mut "h2".chars()).unwrap();
+    /// let res = parser.parse(&mut ParseState::new("h2"), &mut ParseLogger::default()).unwrap();
     /// assert_eq!(res, '2');
     /// ```
     fn and_then<U, F>(self, f: F) -> AndThen<Self, F>
@@ -199,13 +196,13 @@ pub trait ParserExt<S>: Parser<S> {
     /// Parse in sequence, and collect the result.
     /// # Example
     /// ```
-    /// use psc::{char, Parser, ParseState};
+    /// use psc::{char, Parser, ParseState, ParserExt, ParseLogger};
     ///
     /// let parser = char('3').many().chain(char('2').some());
     /// // (3*)(2+)
     ///
-    /// let res = parser.parse(&mut "33322".chars()).unwrap();
-    /// assert_eq!(res, vec!['3', '3', '3', '2', '2']);
+    /// let res = parser.parse(&mut ParseState::new("33322"), &mut ParseLogger::default()).unwrap();
+    /// assert_eq!(res.collect::<Vec<_>>(), vec!['3', '3', '3', '2', '2']);
     /// ```
     fn chain<U>(self, other: U) -> Chain<Self, U::Parser>
     where

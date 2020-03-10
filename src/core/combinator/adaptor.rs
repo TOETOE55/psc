@@ -101,17 +101,6 @@ impl<'a, S, A> Fix<'a, S, A> {
     }
 
     /// use to make rustc happy.
-    /// # Example
-    /// ```
-    /// use psc::core::combinator::Fix;
-    /// use psc::{fix, Parser, char};
-    /// let f = Fix::coerce(|it| Box::new(
-    ///            char('1').and_r(it).or(char('0'))));
-    /// let parser = fix(Box::new(f));
-    ///
-    /// let res = parser.parse(&mut "1110".chars()).unwrap();
-    /// assert_eq!(res, '0');
-    /// ```
     pub fn coerce<F>(f: F) -> F
     where
         F: for<'f> Fn(&'f Self) -> Box<dyn Parser<S, Target = A> + 'f> + 'a,
@@ -139,12 +128,12 @@ impl<'a, S, A> Parser<S> for Fix<'a, S, A> {
 /// Create an fixed-point combinator.
 /// # Example
 /// ```
-/// use psc::{fix, Parser, char};
+/// use psc::{fix, Parser, char, ParserExt, ParseState, ParseLogger};
 /// let parser = fix(|it| Box::new(
 ///         char('1').and_r(it).or(char('0'))));
 /// // parser = '1' parser | '0'
 ///
-/// let res = parser.parse(&mut "1110".chars()).unwrap();
+/// let res = parser.parse(&mut ParseState::new("1110"), &mut ParseLogger::new()).unwrap();
 /// assert_eq!(res, '0');
 /// ```
 pub fn fix<'a, S, A, F>(fix: F) -> Fix<'a, S, A>
