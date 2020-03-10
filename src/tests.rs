@@ -62,7 +62,7 @@ fn it_works() -> Result<(), ParseMsg> {
     assert_eq!(src.as_str(), "");
 
     let mut src = "OIHFa".chars();
-    let res = pure(|| recursion()).join().parse(&mut src)?;
+    let res = pure(|| recursion()).flatten().parse(&mut src)?;
     assert_eq!(res, ());
     assert_eq!(src.as_str(), "");
 

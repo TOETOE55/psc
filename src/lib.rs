@@ -1,15 +1,20 @@
 pub mod core;
 
 pub use crate::core::{
-    combinators::{
-        common::{char, reg, satisfy, strg, Char, Regex, Satisfy, Strg},
-        eof, failure, fix,
-        ops::{ParseFn, ParserWrapper},
-        pure, Failure, Fix, EOF,
+    combinator::{
+        self,
+        adaptor::{self, empty, pure, choice},
+        basic::{self, satisfy, strg, char, reg, EOF},
+        ops::{self, wrap},
+        combine::{self, blank, alpha, digit, lexeme}
     },
-    err::ParseMsg,
-    state::{ParseState, Pos},
-    traits::{covert, parser::Parser, stream::Stream},
+    traits::{
+        self, covert,
+        err::{Msg, ParseLogger},
+        ext::ParserExt,
+        parser::Parser,
+        stream::Stream,
+    },
 };
 
 #[cfg(test)]
