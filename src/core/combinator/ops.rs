@@ -38,12 +38,12 @@ impl<S, P: Clone> Clone for ParserWrapper<S, P> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
-            _marker: PhantomData
+            _marker: PhantomData,
         }
     }
 }
 
-impl<S, P: Copy> Copy for ParserWrapper<S, P> { }
+impl<S, P: Copy> Copy for ParserWrapper<S, P> {}
 
 impl<S, P: IntoParser<S>> From<P> for ParserWrapper<S, P> {
     fn from(parser: P) -> Self {

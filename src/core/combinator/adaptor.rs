@@ -1,5 +1,5 @@
 use crate::core::traits::covert::IntoParser;
-use crate::{ParseLogger, Parser, Msg};
+use crate::{Msg, ParseLogger, Parser};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -550,14 +550,9 @@ pub struct Logger<P> {
 
 impl<P> Logger<P> {
     pub fn new(parser: P, log: Msg) -> Self {
-        Self {
-            log,
-            parser
-        }
+        Self { log, parser }
     }
 }
-
-
 
 impl<S, P: Parser<S>> Parser<S> for Logger<P> {
     type Target = P::Target;
@@ -567,7 +562,7 @@ impl<S, P: Parser<S>> Parser<S> for Logger<P> {
             None => {
                 logger.add(self.log.clone());
                 None
-            },
+            }
             ok => ok,
         }
     }

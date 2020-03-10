@@ -1,6 +1,6 @@
 use crate::adaptor::*;
 use crate::covert::IntoParser;
-use crate::{Parser, Msg};
+use crate::{Msg, Parser};
 
 pub trait ParserExt<S>: Parser<S> {
     /// Alternative combinator.
@@ -276,15 +276,15 @@ pub trait ParserExt<S>: Parser<S> {
     }
 
     fn warn(self, msg: &str) -> Logger<Self>
-        where
-            Self: Sized,
+    where
+        Self: Sized,
     {
         Logger::new(self, Msg::Warn(msg.to_owned()))
     }
 
     fn err(self, msg: &str) -> Logger<Self>
-        where
-            Self: Sized,
+    where
+        Self: Sized,
     {
         Logger::new(self, Msg::Err(msg.to_owned()))
     }

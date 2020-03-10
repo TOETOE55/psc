@@ -3,20 +3,17 @@ pub mod core;
 pub use crate::core::{
     combinator::{
         self,
-        adaptor::{self, empty, pure, choice, fix},
-        basic::{self, satisfy, strg, char, reg, EOF},
+        adaptor::{self, choice, empty, fix, pure},
+        basic::{self, char, reg, satisfy, strg, EOF},
+        combine::{self, alpha, blank, digit, lexeme},
         ops::{self, wrap, ParseFn},
-        combine::{self, blank, alpha, digit, lexeme}
     },
     traits::{
         self, covert,
         err::{Msg, ParseLogger},
         ext::ParserExt,
         parser::Parser,
-        stream::{
-            Stream,
-            ParseState,
-        },
+        stream::{ParseState, Stream},
     },
 };
 

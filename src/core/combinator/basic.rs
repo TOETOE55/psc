@@ -190,11 +190,10 @@ impl<'a> Parser<ParseState<'a>> for EOF {
             Some(ch) => {
                 logger.with(Msg::Err(format!(
                     "error at {:?}, expecting eof, unexpected '{}'.",
-                    stream.pos,
-                    ch
+                    stream.pos, ch
                 )));
                 None
-            },
+            }
         }
     }
 }

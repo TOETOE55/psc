@@ -1,5 +1,3 @@
-
-
 #[derive(Clone, Debug)]
 enum Expr {
     Val(f64),
@@ -12,10 +10,10 @@ enum Expr {
     Pow(Box<Expr>, Box<Expr>),
 }
 
-use Expr::*;
-use crate::{Parser, reg, ParserExt, wrap, pure, ParseLogger, char, lexeme};
-use crate::traits::stream::ParseState;
 use crate::ops::ParseFn;
+use crate::traits::stream::ParseState;
+use crate::{char, lexeme, pure, reg, wrap, ParseLogger, Parser, ParserExt};
+use Expr::*;
 
 impl Expr {
     fn val(v: f64) -> Self {
@@ -86,10 +84,11 @@ fn expr<'a>() -> impl Parser<ParseState<'a>, Target = Expr> {
     ParseFn(parse_expr)
 }
 
-fn expr_<'a>(
-) -> impl Parser<ParseState<'a>, Target = Option<Box<dyn FnOnce(Expr) -> Expr>>> {
-    fn parse_plus(stream: &mut ParseState, logger: &mut ParseLogger)
-                  -> Option<Option<Box<dyn FnOnce(Expr) -> Expr>>> {
+fn expr_<'a>() -> impl Parser<ParseState<'a>, Target = Option<Box<dyn FnOnce(Expr) -> Expr>>> {
+    fn parse_plus(
+        stream: &mut ParseState,
+        logger: &mut ParseLogger,
+    ) -> Option<Option<Box<dyn FnOnce(Expr) -> Expr>>> {
         lexeme('+').parse(stream, logger)?;
         let e1 = mult().parse(stream, logger)?;
         let e2 = expr_().parse(stream, logger)?;
@@ -99,8 +98,10 @@ fn expr_<'a>(
         }))
     }
 
-    fn parse_minu(stream: &mut ParseState, logger: &mut ParseLogger)
-                  -> Option<Option<Box<dyn FnOnce(Expr) -> Expr>>> {
+    fn parse_minu(
+        stream: &mut ParseState,
+        logger: &mut ParseLogger,
+    ) -> Option<Option<Box<dyn FnOnce(Expr) -> Expr>>> {
         lexeme('-').parse(stream, logger)?;
         let e1 = mult().parse(stream, logger)?;
         let e2 = expr_().parse(stream, logger)?;
@@ -125,10 +126,11 @@ fn mult<'a>() -> impl Parser<ParseState<'a>, Target = Expr> {
     ParseFn(parse_mul)
 }
 
-fn mult_<'a>(
-) -> impl Parser<ParseState<'a>, Target = Option<Box<dyn FnOnce(Expr) -> Expr>>> {
-    fn parse_mul(stream: &mut ParseState, logger: &mut ParseLogger)
-        -> Option<Option<Box<dyn FnOnce(Expr) -> Expr>>> {
+fn mult_<'a>() -> impl Parser<ParseState<'a>, Target = Option<Box<dyn FnOnce(Expr) -> Expr>>> {
+    fn parse_mul(
+        stream: &mut ParseState,
+        logger: &mut ParseLogger,
+    ) -> Option<Option<Box<dyn FnOnce(Expr) -> Expr>>> {
         lexeme('*').parse(stream, logger)?;
         let e1 = uexpr().parse(stream, logger)?;
         let e2 = mult_().parse(stream, logger)?;
@@ -138,8 +140,10 @@ fn mult_<'a>(
         }))
     }
 
-    fn parse_div(stream: &mut ParseState, logger: &mut ParseLogger)
-                  -> Option<Option<Box<dyn FnOnce(Expr) -> Expr>>> {
+    fn parse_div(
+        stream: &mut ParseState,
+        logger: &mut ParseLogger,
+    ) -> Option<Option<Box<dyn FnOnce(Expr) -> Expr>>> {
         lexeme('/').parse(stream, logger)?;
         let e1 = uexpr().parse(stream, logger)?;
         let e2 = mult_().parse(stream, logger)?;
