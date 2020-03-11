@@ -2,16 +2,16 @@ use crate::core::traits::covert::IntoParser;
 use crate::core::traits::stream::ParseState;
 use crate::{satisfy, wrap, Parser, ParserExt};
 
-pub fn alpha<'a>() -> impl Parser<ParseState<'a>, Target = char> + Clone {
+pub fn alpha() -> impl for<'a> Parser<ParseState<'a>, Target = char> + Clone {
     satisfy(|ch| ch.is_alphabetic()).info("expecting alpha")
 }
 
-pub fn digit<'a>() -> impl Parser<ParseState<'a>, Target = char> + Clone {
+pub fn digit() -> impl for<'a> Parser<ParseState<'a>, Target = char> + Clone {
     satisfy(|ch| ch.is_digit(10)).info("expecting digit")
 }
 
-pub fn blank<'a>() -> impl Parser<ParseState<'a>, Target = char> + Copy {
-    wrap(' ') | '\n' | '\t' | '\r'
+pub fn blank() -> impl for <'a> Parser<ParseState<'a>, Target = char> + Copy {
+    crate::char(' ').or('\n').or('\t').or('\r')
 }
 
 pub fn lexeme<'a, A>(
