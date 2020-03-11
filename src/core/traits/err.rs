@@ -24,3 +24,30 @@ impl ParseLogger {
         self.stack.push(msg);
     }
 }
+
+impl IntoIterator for ParseLogger {
+    type Item = Msg;
+    type IntoIter = std::vec::IntoIter<Msg>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.stack.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a ParseLogger {
+    type Item = &'a Msg;
+    type IntoIter = std::slice::Iter<'a, Msg>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.stack.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut ParseLogger {
+    type Item = &'a mut Msg;
+    type IntoIter = std::slice::IterMut<'a, Msg>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.stack.iter_mut()
+    }
+}

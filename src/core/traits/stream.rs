@@ -45,7 +45,9 @@ impl<'a> ParseState<'a> {
         self.len
     }
 
-    pub fn is_empty(&self) -> bool { self.len == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
 }
 
 impl<'a> Iterator for ParseState<'a> {
