@@ -26,6 +26,8 @@ impl<'a> IntoParser<ParseState<'a>> for char {
     }
 }
 
+
+
 impl<'s> IntoParser<ParseState<'s>> for &str {
     type Target = &'s str;
     type Parser = Strg;

@@ -10,7 +10,7 @@ pub fn digit() -> impl for<'a> Parser<ParseState<'a>, Target = char> + Clone {
     satisfy(|ch| ch.is_digit(10)).info("expecting digit")
 }
 
-pub fn blank() -> impl for <'a> Parser<ParseState<'a>, Target = char> + Copy {
+pub fn blank() -> impl for<'a> Parser<ParseState<'a>, Target = char> + Copy {
     crate::char(' ').or('\n').or('\t').or('\r')
 }
 

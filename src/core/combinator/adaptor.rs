@@ -4,33 +4,18 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 /// Pure Combinator
-#[derive(Debug)]
-pub struct Pure<S, F> {
+#[derive(Debug, Copy, Clone)]
+pub struct Pure<F> {
     x: F,
-    _marker: PhantomData<fn(&mut S)>,
 }
 
-impl<S, F> Pure<S, F> {
+impl<F> Pure<F> {
     pub fn new(x: F) -> Self {
-        Self {
-            x,
-            _marker: PhantomData,
-        }
+        Self { x }
     }
 }
 
-impl<S, F: Clone> Clone for Pure<S, F> {
-    fn clone(&self) -> Self {
-        Self {
-            x: self.x.clone(),
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<S, F: Copy> Copy for Pure<S, F> {}
-
-impl<S, T, F: Fn() -> T> Parser<S> for Pure<S, F> {
+impl<S, T, F: Fn() -> T> Parser<S> for Pure<F> {
     type Target = T;
 
     fn parse(&self, _: &mut S, _: &mut ParseLogger) -> Option<Self::Target> {
@@ -40,17 +25,17 @@ impl<S, T, F: Fn() -> T> Parser<S> for Pure<S, F> {
 
 /// Create an Pure Combinator.
 /// The parser will not consume anything, but lift an value to a parser.
-pub fn pure<S, T, F: Fn() -> T>(x: F) -> Pure<S, F> {
+pub fn pure<T, F: Fn() -> T>(x: F) -> Pure<F> {
     Pure::new(x)
 }
 
 /// Failure Combinator
 #[derive(Debug)]
-pub struct Empty<S, T> {
-    _marker: PhantomData<fn(&mut S) -> Option<T>>,
+pub struct Empty<T> {
+    _marker: PhantomData<fn() -> Option<T>>,
 }
 
-impl<S, T> Empty<S, T> {
+impl<T> Empty<T> {
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
@@ -58,21 +43,21 @@ impl<S, T> Empty<S, T> {
     }
 }
 
-impl<S, T> Default for Empty<S, T> {
+impl<T> Default for Empty<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<S, T> Clone for Empty<S, T> {
+impl<T> Clone for Empty<T> {
     fn clone(&self) -> Self {
         Self::default()
     }
 }
 
-impl<S, T> Copy for Empty<S, T> {}
+impl<T> Copy for Empty<T> {}
 
-impl<S, T> Parser<S> for Empty<S, T> {
+impl<S, T> Parser<S> for Empty<T> {
     type Target = T;
 
     fn parse(&self, _: &mut S, _: &mut ParseLogger) -> Option<Self::Target> {
@@ -82,7 +67,7 @@ impl<S, T> Parser<S> for Empty<S, T> {
 
 /// Create the failure combinator.
 /// It consume an stream and returning Err(msg).
-pub fn empty<S, T>() -> Empty<S, T> {
+pub fn empty<T>() -> Empty<T> {
     Empty::new()
 }
 

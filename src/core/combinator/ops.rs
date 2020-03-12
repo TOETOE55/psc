@@ -1,13 +1,13 @@
 use crate::adaptor::*;
 use crate::covert::IntoParser;
-use crate::{ParseLogger, Parser, ParserExt, Stream};
+use crate::{ParseLogger, Parser, ParserExt};
 use std::marker::PhantomData;
 use std::ops::{BitOr, Shl, Shr};
 
 /// Alg wrapper
-/// 1. `wrap(pa) >> pb ~ pa.and_r(pb)`
-/// 2. `wrap(pa) << pb ~ pa.and_l(pb)`
-/// 3. `wrap(pa) | pb ~ pa.or(pb)`
+/// 1. `wrap(pa) >> pb <- pa.and_r(pb)`
+/// 2. `wrap(pa) << pb <- pa.and_l(pb)`
+/// 3. `wrap(pa) | pb <- pa.or(pb)`
 pub struct ParserWrapper<S, P> {
     inner: P,
     _marker: PhantomData<fn(&mut S)>,
@@ -26,7 +26,7 @@ impl<S, P> ParserWrapper<S, P> {
     }
 }
 
-impl<S: Stream, P: Parser<S>> Parser<S> for ParserWrapper<S, P> {
+impl<S, P: Parser<S>> Parser<S> for ParserWrapper<S, P> {
     type Target = P::Target;
 
     fn parse(&self, stream: &mut S, logger: &mut ParseLogger) -> Option<Self::Target> {

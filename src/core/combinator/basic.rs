@@ -111,7 +111,7 @@ impl<'s> Parser<ParseState<'s>> for Strg {
         let src = stream.as_str();
         if let Some(0) = src.find(&self.temp) {
             stream.take(self.temp.len()).for_each(|_| {});
-            Some(src.split_at(self.temp.len()).0)
+            Some(&src[0..self.temp.len()])
         } else {
             logger.with(Msg::Err(format!(
                 "error at {:?}, expecting \"{}\".",
@@ -160,7 +160,7 @@ impl<'s> Parser<ParseState<'s>> for Regex {
         match self.delegate.find(src) {
             Some(m) if m.start() == 0 => {
                 stream.take(m.end()).for_each(|_| {});
-                Some(src.split_at(m.end()).0)
+                Some(&src[0..m.end()])
             }
             _ => {
                 logger.with(Msg::Err(format!(
