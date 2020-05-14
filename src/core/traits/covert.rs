@@ -19,7 +19,7 @@ impl<S, P: Parser<S>> IntoParser<S> for P {
 
 impl<'a> IntoParser<ParseState<'a>> for char {
     type Target = char;
-    type Parser = Char<ParseState<'a>>;
+    type Parser = Char;
 
     fn into_parser(self) -> Self::Parser {
         Char::new(self)
@@ -30,7 +30,7 @@ impl<'a> IntoParser<ParseState<'a>> for char {
 
 impl<'s> IntoParser<ParseState<'s>> for &str {
     type Target = &'s str;
-    type Parser = Strg<ParseState<'s>>;
+    type Parser = Strg;
 
     fn into_parser(self) -> Self::Parser {
         Strg::new(self)
