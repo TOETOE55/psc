@@ -1,6 +1,5 @@
-use crate::core::traits::stream::{ParseState, Pos};
+use crate::core::traits::stream::ParseState;
 use crate::{Msg, ParseLogger, Parser};
-use std::marker::PhantomData;
 
 /// Satisfy parser
 #[derive(Clone, Copy, Debug)]
@@ -49,27 +48,18 @@ where
 }
 
 /// Char matching parser
-#[derive(Debug)]
-pub struct Char<S> {
+#[derive(Clone, Copy, Debug)]
+pub struct Char {
     pub(crate) ch: char,
-    _marker: PhantomData<fn(&mut S)>
 }
 
-impl<S> Char<S> {
+impl Char {
     pub fn new(ch: char) -> Self {
-        Self { ch, _marker: PhantomData }
+        Self { ch }
     }
 }
 
-impl<S> Clone for Char<S> {
-    fn clone(&self) -> Self {
-        Self { ch: self.ch, _marker: PhantomData }
-    }
-}
-
-impl<S> Copy for Char<S> { }
-
-impl<'a> Parser<ParseState<'a>> for Char<ParseState<'a>> {
+impl<'a> Parser<ParseState<'a>> for Char {
     type Target = char;
 
     fn parse(&self, stream: &mut ParseState<'a>, logger: &mut ParseLogger) -> Option<Self::Target> {
@@ -96,34 +86,25 @@ impl<'a> Parser<ParseState<'a>> for Char<ParseState<'a>> {
     }
 }
 
-pub fn char<S>(ch: char) -> Char<S> {
+pub fn char(ch: char) -> Char {
     Char::new(ch)
 }
 
 /// String matching parser
-#[derive(Debug)]
-pub struct Strg<S> {
+#[derive(Clone, Debug)]
+pub struct Strg {
     pub(crate) temp: String,
-    _marker: PhantomData<fn(&mut S)>
 }
 
-impl<S> Strg<S> {
+impl Strg {
     pub fn new(temp: &str) -> Self {
         Strg {
             temp: temp.to_owned(),
-            _marker: PhantomData
         }
     }
 }
 
-impl<S> Clone for Strg<S> {
-    fn clone(&self) -> Self {
-        Self { temp: self.temp.clone(), _marker: PhantomData }
-    }
-}
-
-
-impl<'s> Parser<ParseState<'s>> for Strg<ParseState<'s>> {
+impl<'s> Parser<ParseState<'s>> for Strg {
     type Target = &'s str;
 
     fn parse(&self, stream: &mut ParseState<'s>, logger: &mut ParseLogger) -> Option<Self::Target> {
@@ -141,27 +122,19 @@ impl<'s> Parser<ParseState<'s>> for Strg<ParseState<'s>> {
     }
 }
 
-pub fn strg<S>(s: &str) -> Strg<S> {
+pub fn strg(s: &str) -> Strg {
     Strg::new(s)
 }
 
 /// regex
-#[derive(Debug)]
-pub struct Regex<S> {
+#[derive(Clone, Debug)]
+pub struct Regex {
     delegate: regex::Regex,
-    _marker: PhantomData<fn(&mut S)>
 }
 
-impl<S> Clone for Regex<S> {
-    fn clone(&self) -> Self {
-        Self { delegate: self.delegate.clone(), _marker: PhantomData }
-    }
-}
-
-
-impl<S> Regex<S> {
+impl Regex {
     pub fn new(re: &str) -> Result<Self, regex::Error> {
-        regex::Regex::new(re).map(|delegate| Self { delegate, _marker: PhantomData })
+        regex::Regex::new(re).map(|delegate| Self { delegate })
     }
 
     pub fn delegate(&self) -> &regex::Regex {
@@ -173,13 +146,13 @@ impl<S> Regex<S> {
     }
 }
 
-impl<S> From<regex::Regex> for Regex<S> {
+impl From<regex::Regex> for Regex {
     fn from(re: regex::Regex) -> Self {
-        Self { delegate: re, _marker: PhantomData }
+        Self { delegate: re }
     }
 }
 
-impl<'s> Parser<ParseState<'s>> for Regex<ParseState<'s>> {
+impl<'s> Parser<ParseState<'s>> for Regex {
     type Target = &'s str;
 
     fn parse(&self, stream: &mut ParseState<'s>, logger: &mut ParseLogger) -> Option<Self::Target> {
@@ -201,16 +174,14 @@ impl<'s> Parser<ParseState<'s>> for Regex<ParseState<'s>> {
     }
 }
 
-pub fn reg<S>(re: &str) -> Regex<S> {
+pub fn reg(re: &str) -> Regex {
     Regex::new(re).unwrap()
 }
 
-#[derive(Debug)]
-pub struct EOF<S> {
-    _marker: PhantomData<fn(&mut S)>
-}
+#[derive(Copy, Clone, Debug)]
+pub struct EOF;
 
-impl<'a> Parser<ParseState<'a>> for EOF<ParseState<'a>> {
+impl<'a> Parser<ParseState<'a>> for EOF {
     type Target = ();
 
     fn parse(&self, stream: &mut ParseState<'a>, logger: &mut ParseLogger) -> Option<Self::Target> {
@@ -224,44 +195,5 @@ impl<'a> Parser<ParseState<'a>> for EOF<ParseState<'a>> {
                 None
             }
         }
-    }
-}
-
-pub fn eof<S>() -> EOF<S> {
-    EOF { _marker: PhantomData }
-}
-
-impl<S> Clone for EOF<S> {
-    fn clone(&self) -> Self {
-        Self { _marker: PhantomData }
-    }
-}
-
-impl<S> Copy for EOF<S> { }
-
-#[derive(Debug)]
-pub struct GetPos<S> {
-    _marker: PhantomData<fn(&mut S)>
-}
-
-impl<S> Clone for GetPos<S> {
-    fn clone(&self) -> Self {
-        Self { _marker: PhantomData }
-    }
-}
-
-impl<S> Copy for GetPos<S> { }
-
-impl<'a> Parser<ParseState<'a>> for GetPos<ParseState<'a>> {
-    type Target = Pos;
-
-    fn parse(&self, stream: &mut ParseState<'a>, _: &mut ParseLogger) -> Option<Self::Target> {
-        Some(stream.pos)
-    }
-}
-
-pub fn pos<S>() -> GetPos<S> {
-    GetPos {
-        _marker: PhantomData
     }
 }

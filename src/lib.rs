@@ -4,7 +4,7 @@ pub use crate::core::{
     combinator::{
         self,
         adaptor::{self, choice, empty, fix, pure},
-        basic::{self, char, reg, satisfy, strg, eof, pos},
+        basic::{self, char, reg, satisfy, strg, EOF},
         combine::{self, alpha, blank, digit, lexeme},
         ops::{self, wrap, ParseFn},
     },
@@ -13,7 +13,7 @@ pub use crate::core::{
         err::{Msg, ParseLogger},
         ext::ParserExt,
         parser::Parser,
-        stream::{ParseState, Stream, Pos},
+        stream::{ParseState, Stream},
     },
 };
 
