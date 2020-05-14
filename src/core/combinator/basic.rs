@@ -1,4 +1,4 @@
-use crate::core::traits::stream::ParseState;
+use crate::core::traits::stream::{ParseState, Pos};
 use crate::{Msg, ParseLogger, Parser};
 
 /// Satisfy parser
@@ -196,4 +196,18 @@ impl<'a> Parser<ParseState<'a>> for EOF {
             }
         }
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct GetPos;
+impl<'a> Parser<ParseState<'a>> for GetPos {
+    type Target = Pos;
+
+    fn parse(&self, stream: &mut ParseState<'a>, _: &mut ParseLogger) -> Option<Self::Target> {
+        Some(stream.pos)
+    }
+}
+
+pub fn pos() -> GetPos {
+    GetPos
 }
