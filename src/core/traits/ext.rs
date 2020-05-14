@@ -168,6 +168,14 @@ pub trait ParserExt<S>: Parser<S> {
         Map3::new(self, other.into_parser(), another.into_parser(), f)
     }
 
+    fn filter<F>(self, f: F) -> Filter<Self, F>
+    where
+        Self: Sized,
+        F: Fn(&Self::Target) -> bool,
+    {
+        Filter::new(self, f)
+    }
+
     /// Context Sensitive Sequence Combinator.
     /// It's used to construct context sensitive parser.
     ///

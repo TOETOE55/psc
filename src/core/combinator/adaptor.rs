@@ -293,6 +293,30 @@ where
     }
 }
 
+/// Map Combinator
+#[derive(Clone, Copy)]
+pub struct Filter<P, F> {
+    parser: P,
+    f: F,
+}
+
+impl<P, F> Filter<P, F> {
+    pub fn new(parser: P, f: F) -> Self {
+        Self { parser, f }
+    }
+}
+
+impl<S, P: Parser<S>, F> Parser<S> for Filter<P, F>
+where
+    F: Fn(&P::Target) -> bool,
+{
+    type Target = P::Target;
+
+    fn parse(&self, stream: &mut S, logger: &mut ParseLogger) -> Option<Self::Target> {
+        self.parser.parse(stream, logger).filter(&self.f)
+    }
+}
+
 /// Context Sensitive Sequence Combinator
 #[derive(Copy, Clone)]
 pub struct AndThen<P, F> {
