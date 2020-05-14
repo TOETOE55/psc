@@ -168,6 +168,23 @@ pub trait ParserExt<S>: Parser<S> {
         Map3::new(self, other.into_parser(), another.into_parser(), f)
     }
 
+    fn map4<U, V, W, B, F>(
+        self,
+        a: U,
+        b: V,
+        c: W,
+        f: F,
+    ) -> Map4<Self, U::Parser, V::Parser, W::Parser, F>
+    where
+        Self: Sized,
+        U: IntoParser<S>,
+        V: IntoParser<S>,
+        W: IntoParser<S>,
+        F: Fn(Self::Target, U::Target, V::Target, W::Target) -> B,
+    {
+        Map4::new(self, a.into_parser(), b.into_parser(), c.into_parser(), f)
+    }
+
     fn filter<F>(self, f: F) -> Filter<Self, F>
     where
         Self: Sized,

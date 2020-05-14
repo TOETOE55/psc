@@ -261,7 +261,7 @@ where
     }
 }
 
-/// Map2 Combinator
+/// Map3 Combinator
 #[derive(Clone, Copy)]
 pub struct Map3<PA, PB, PC, F> {
     pa: PA,
@@ -290,6 +290,41 @@ where
         let b = self.pb.parse(stream, logger)?;
         let c = self.pc.parse(stream, logger)?;
         Some((self.f)(a, b, c))
+    }
+}
+
+/// Map2 Combinator
+#[derive(Clone, Copy)]
+pub struct Map4<PA, PB, PC, PD, F> {
+    pa: PA,
+    pb: PB,
+    pc: PC,
+    pd: PD,
+    f: F,
+}
+
+impl<PA, PB, PC, PD, F> Map4<PA, PB, PC, PD, F> {
+    pub fn new(pa: PA, pb: PB, pc: PC, pd: PD, f: F) -> Self {
+        Self { pa, pb, pc, pd, f }
+    }
+}
+
+impl<S, PA, PB, PC, PD, T, F> Parser<S> for Map4<PA, PB, PC, PD, F>
+where
+    PA: Parser<S>,
+    PB: Parser<S>,
+    PC: Parser<S>,
+    PD: Parser<S>,
+    F: Fn(PA::Target, PB::Target, PC::Target, PD::Target) -> T,
+{
+    type Target = T;
+
+    fn parse(&self, stream: &mut S, logger: &mut ParseLogger) -> Option<Self::Target> {
+        let a = self.pa.parse(stream, logger)?;
+        let b = self.pb.parse(stream, logger)?;
+        let c = self.pc.parse(stream, logger)?;
+        let d = self.pd.parse(stream, logger)?;
+        Some((self.f)(a, b, c, d))
     }
 }
 
