@@ -163,7 +163,7 @@ pub trait ParserExt<S>: Parser<S> {
         Self: Sized,
         U: IntoParser<S>,
         V: IntoParser<S>,
-        F: Fn(Self::Target, U::Target) -> B,
+        F: Fn(Self::Target, U::Target, V::Target) -> B,
     {
         Map3::new(self, other.into_parser(), another.into_parser(), f)
     }
