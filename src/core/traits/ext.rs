@@ -158,6 +158,16 @@ pub trait ParserExt<S>: Parser<S> {
         Map2::new(self, other.into_parser(), f)
     }
 
+    fn map3<U, V, B, F>(self, other: U, another: V, f: F) -> Map3<Self, U::Parser, V::Parser, F>
+    where
+        Self: Sized,
+        U: IntoParser<S>,
+        V: IntoParser<S>,
+        F: Fn(Self::Target, U::Target) -> B,
+    {
+        Map3::new(self, other.into_parser(), another.into_parser(), f)
+    }
+
     /// Context Sensitive Sequence Combinator.
     /// It's used to construct context sensitive parser.
     ///

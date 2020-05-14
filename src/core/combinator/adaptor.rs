@@ -261,6 +261,38 @@ where
     }
 }
 
+/// Map2 Combinator
+#[derive(Clone, Copy)]
+pub struct Map3<PA, PB, PC, F> {
+    pa: PA,
+    pb: PB,
+    pc: PC,
+    f: F,
+}
+
+impl<PA, PB, PC, F> Map3<PA, PB, PC, F> {
+    pub fn new(pa: PA, pb: PB, pc: PC, f: F) -> Self {
+        Self { pa, pb, pc, f }
+    }
+}
+
+impl<S, PA, PB, PC, T, F> Parser<S> for Map3<PA, PB, PC, F>
+where
+    PA: Parser<S>,
+    PB: Parser<S>,
+    PC: Parser<S>,
+    F: Fn(PA::Target, PB::Target, PC::Target) -> T,
+{
+    type Target = T;
+
+    fn parse(&self, stream: &mut S, logger: &mut ParseLogger) -> Option<Self::Target> {
+        let a = self.pa.parse(stream, logger)?;
+        let b = self.pb.parse(stream, logger)?;
+        let c = self.pc.parse(stream, logger)?;
+        Some((self.f)(a, b, c))
+    }
+}
+
 /// Context Sensitive Sequence Combinator
 #[derive(Copy, Clone)]
 pub struct AndThen<P, F> {
