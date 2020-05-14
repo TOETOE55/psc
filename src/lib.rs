@@ -4,7 +4,7 @@ pub use crate::core::{
     combinator::{
         self,
         adaptor::{self, choice, empty, fix, pure},
-        basic::{self, char, reg, satisfy, strg, EOF, pos},
+        basic::{self, char, reg, satisfy, strg, eof, pos},
         combine::{self, alpha, blank, digit, lexeme},
         ops::{self, wrap, ParseFn},
     },
