@@ -57,7 +57,7 @@ impl<'a> Iterator for ParseState<'a> {
         self.pos = match ch {
             '\n' => Pos {
                 row: self.pos.row + 1,
-                ..self.pos
+                col: 0,
             },
             '\t' => Pos {
                 col: self.pos.col + 8 - (self.pos.col - 1) % 8,
