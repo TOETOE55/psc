@@ -104,3 +104,23 @@ where
         (self.0)(stream, logger)
     }
 }
+
+/// Parser wrapper
+#[derive(Copy, Clone, Debug)]
+pub struct Lazy<F>(F);
+
+impl<S, P, F> Parser<S> for Lazy<F>
+where
+    P: Parser<S>,
+    F: Fn() -> P,
+{
+    type Target = P::Target;
+
+    fn parse(&self, stream: &mut S, logger: &mut ParseLogger) -> Option<Self::Target> {
+        (self.0)().parse(stream, logger)
+    }
+}
+
+pub fn lazy<F>(p: F) -> Lazy<F> {
+    Lazy(p)
+}
